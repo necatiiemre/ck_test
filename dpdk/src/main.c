@@ -590,10 +590,13 @@ int main(int argc, char const *argv[])
 
 #if ENABLE_RAW_SOCKET_PORTS
         // Print raw socket port stats (only if initialized)
+        // DTN modunda raw socket tablosu ayrıca basılmaz, DTN tablosu yeterli
+#if !STATS_MODE_DTN
         if (raw_ports_initialized)
         {
             print_raw_socket_stats();
         }
+#endif
 #endif
 
 #if PTP_ENABLED
