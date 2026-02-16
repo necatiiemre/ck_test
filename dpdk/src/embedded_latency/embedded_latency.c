@@ -1232,6 +1232,71 @@ int emb_latency_run_loopback(int packet_count, int timeout_ms, int max_latency_u
 }
 
 // ============================================
+// DTNIRSW PORT MAPPING & UNIT LATENCY HELPERS
+// ============================================
+
+/**
+ * Map VLAN/port to dtnirsw TX/RX port numbers
+ * Fiber: VLAN 97-128 maps to dtnirsw ports 0-31
+ * Copper: Port 12<->13 maps to dtnirsw 32<->33
+ */
+static void get_dtnirsw_ports(uint16_t tx_port, uint16_t rx_port, uint16_t vlan_id,
+                               uint16_t *dtnirsw_tx, uint16_t *dtnirsw_rx) {
+    if (vlan_id >= 97 && vlan_id <= 128) {
+        uint16_t idx = vlan_id - 97;
+        *dtnirsw_tx = idx;
+        *dtnirsw_rx = (idx + 16) % 32;
+    } else if (tx_port == 12 && rx_port == 13) {
+        *dtnirsw_tx = 32;
+        *dtnirsw_rx = 33;
+    } else if (tx_port == 13 && rx_port == 12) {
+        *dtnirsw_tx = 33;
+        *dtnirsw_rx = 32;
+    } else {
+        *dtnirsw_tx = tx_port;
+        *dtnirsw_rx = rx_port;
+    }
+}
+
+/**
+ * Get store-and-forward delay for a given dtnirsw direction
+ * 32->33 (Port 12->13): 1G S&F
+ * 33->32 (Port 13->12): 100M S&F
+ * Fiber: 1G S&F
+ */
+static double get_sf_delay_us(uint16_t dtnirsw_tx, uint16_t dtnirsw_rx) {
+    if (dtnirsw_tx == 33 && dtnirsw_rx == 32) {
+        return EMB_LAT_STORE_FWD_DELAY_100M_US;
+    }
+    return EMB_LAT_STORE_FWD_DELAY_1G_US;
+}
+
+/**
+ * Get loopback (switch) latency for a given original TX port
+ * Copper ports have no switch, returns 0
+ */
+static double get_loopback_latency_us(uint16_t orig_tx_port) {
+    if (orig_tx_port == 12 || orig_tx_port == 13) {
+        return 0.0;
+    }
+
+    if (g_emb_latency.loopback_completed && !g_emb_latency.loopback_skipped) {
+        double sum = 0;
+        int count = 0;
+        for (uint32_t j = 0; j < g_emb_latency.loopback_result_count; j++) {
+            struct emb_latency_result *r = &g_emb_latency.loopback_results[j];
+            if (r->valid && r->tx_port == orig_tx_port) {
+                sum += ns_to_us(r->avg_latency_ns);
+                count++;
+            }
+        }
+        if (count > 0) return sum / count;
+    }
+
+    return EMB_LAT_DEFAULT_SWITCH_US;
+}
+
+// ============================================
 // UNIT TEST (Device Latency)
 // ============================================
 
@@ -1348,6 +1413,27 @@ int emb_latency_run_unit_test(int packet_count, int timeout_ms, int max_latency_
     // Update unit test state
     g_emb_latency.unit_result_count = result_idx;
     g_emb_latency.unit_completed = true;
+
+    // Recalculate pass/fail based on unit latency (total - loopback - S&F)
+    passed_count = 0;
+    failed_count = 0;
+    for (int i = 0; i < result_idx; i++) {
+        struct emb_latency_result *r = &g_emb_latency.unit_results[i];
+        if (r->rx_count > 0 && r->valid) {
+            uint16_t dtnirsw_tx, dtnirsw_rx;
+            get_dtnirsw_ports(r->tx_port, r->rx_port, r->vlan_id, &dtnirsw_tx, &dtnirsw_rx);
+            double avg_us = ns_to_us(r->avg_latency_ns);
+            double loopback_us = get_loopback_latency_us(r->tx_port);
+            double sf_us = get_sf_delay_us(dtnirsw_tx, dtnirsw_rx);
+            double unit_us = avg_us - loopback_us - sf_us;
+            if (unit_us < 0) unit_us = 0;
+            r->passed = (unit_us <= EMB_LAT_UNIT_THRESHOLD_US);
+        } else {
+            r->passed = false;
+        }
+        if (r->passed) passed_count++;
+        else failed_count++;
+    }
     g_emb_latency.unit_passed = (failed_count == 0);
 
     // Print results table
@@ -1504,7 +1590,7 @@ int emb_latency_full_sequence(void) {
     printf("║         LATENCY TEST SEQUENCE                                    ║\n");
     printf("║  1. Loopback Test (Mellanox switch latency measurement)          ║\n");
     printf("║  2. Unit Test (Fiber: 0↔1,2↔3,4↔5,6↔7 + Copper: 12↔13)         ║\n");
-    printf("║  3. Combined Results (unit = total - loopback - S&F)             ║\n");
+    printf("║     (Unit latency = Avg - Loopback - S&F, shown in table)        ║\n");
     printf("╚══════════════════════════════════════════════════════════════════╝\n");
     printf("\n");
 
@@ -1585,17 +1671,9 @@ int emb_latency_full_sequence(void) {
         printf("\nPlease install the unit test cables and try again.\n\n");
     }
 
-    // Run unit test
+    // Run unit test (unit latency calculation is now done inside print_unit)
     int unit_fails = emb_latency_run_unit_test(1, 100, 100);  // 1 packet, 100ms timeout, 100us max
     total_fails += unit_fails;
-
-    // ==========================================
-    // STEP 3: Calculate Combined Results
-    // ==========================================
-    printf("=== STEP 3: Combined Latency Results ===\n\n");
-
-    emb_latency_calculate_combined();
-    emb_latency_print_combined();
 
     // Update legacy state
     g_emb_latency.test_completed = true;
@@ -1816,10 +1894,222 @@ void emb_latency_print_loopback(void) {
 }
 
 void emb_latency_print_unit(void) {
+    struct emb_latency_result *results = g_emb_latency.unit_results;
+    int count = g_emb_latency.unit_result_count;
+
+    // Column widths for unit test table (10 columns)
+    #define UT_COL_PORT    8
+    #define UT_COL_VLAN    10
+    #define UT_COL_VLID    10
+    #define UT_COL_LAT     11
+    #define UT_COL_RXTX    10
+    #define UT_COL_RESULT  8
+
+    // 10 columns: TX Port, RX Port, VLAN, VL-ID, Min, Avg, Max, Unit, RX/TX, Result
+    #define UT_TABLE_WIDTH (UT_COL_PORT + UT_COL_PORT + UT_COL_VLAN + UT_COL_VLID + \
+                            UT_COL_LAT + UT_COL_LAT + UT_COL_LAT + UT_COL_LAT + \
+                            UT_COL_RXTX + UT_COL_RESULT + 9)
+
+    // Line drawing helper (10 columns)
+    #define UT_PRINT_LINE(L, M, R, F) do { \
+        printf("%s", L); \
+        for (int _i = 0; _i < UT_COL_PORT; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_PORT; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_VLAN; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_VLID; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_LAT; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_LAT; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_LAT; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_LAT; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_RXTX; _i++) printf("%s", F); printf("%s", M); \
+        for (int _i = 0; _i < UT_COL_RESULT; _i++) printf("%s", F); printf("%s\n", R); \
+    } while(0)
+
+    // Calculate statistics
+    int successful = 0;
+    int passed_count = 0;
+    double total_avg_latency = 0.0;
+    double max_of_maxs = 0.0;
+
+    for (int i = 0; i < count; i++) {
+        struct emb_latency_result *r = &results[i];
+        if (r->rx_count > 0) {
+            successful++;
+            double avg = ns_to_us(r->avg_latency_ns);
+            total_avg_latency += avg;
+            double max_lat = ns_to_us(r->max_latency_ns);
+            if (max_lat > max_of_maxs) max_of_maxs = max_lat;
+        }
+        if (r->passed) passed_count++;
+    }
+
+    printf("\n");
+    fflush(stdout);
+
+    // Title
     char title[128];
     snprintf(title, sizeof(title), "UNIT TEST RESULTS (Device Latency) [TS: %s]",
              g_using_hw_timestamps ? "HW" : "SW!");
-    print_results_table(title, g_emb_latency.unit_results, g_emb_latency.unit_result_count);
+
+    // Top border
+    UT_PRINT_LINE("╔", "╦", "╗", "═");
+
+    // Title line
+    {
+        int title_len = strlen(title);
+        int padding = (UT_TABLE_WIDTH - title_len) / 2;
+        printf("║");
+        for (int i = 0; i < padding; i++) printf(" ");
+        printf("%s", title);
+        for (int i = 0; i < UT_TABLE_WIDTH - padding - title_len; i++) printf(" ");
+        printf("║\n");
+    }
+
+    // Header separator
+    UT_PRINT_LINE("╠", "╬", "╣", "═");
+
+    // Header row
+    printf("║%*s║%*s║%*s║%*s║%*s║%*s║%*s║%*s║%*s║%*s║\n",
+           UT_COL_PORT, "TX Port",
+           UT_COL_PORT, "RX Port",
+           UT_COL_VLAN, "VLAN",
+           UT_COL_VLID, "VL-ID",
+           UT_COL_LAT, "Min (us)",
+           UT_COL_LAT, "Avg (us)",
+           UT_COL_LAT, "Max (us)",
+           UT_COL_LAT, "Unit (us)",
+           UT_COL_RXTX, "RX/TX",
+           UT_COL_RESULT, "Result");
+
+    // Header bottom separator
+    UT_PRINT_LINE("╠", "╬", "╣", "═");
+
+    // Build sorted index array by dtnirsw TX port (ascending)
+    int sorted_idx[count];
+    uint16_t sorted_tx[count];
+    for (int i = 0; i < count; i++) {
+        sorted_idx[i] = i;
+        uint16_t dtx, drx;
+        get_dtnirsw_ports(results[i].tx_port, results[i].rx_port, results[i].vlan_id, &dtx, &drx);
+        sorted_tx[i] = dtx;
+    }
+    // Simple insertion sort (count is small, ~34)
+    for (int i = 1; i < count; i++) {
+        int key_idx = sorted_idx[i];
+        uint16_t key_tx = sorted_tx[i];
+        int j = i - 1;
+        while (j >= 0 && sorted_tx[j] > key_tx) {
+            sorted_idx[j + 1] = sorted_idx[j];
+            sorted_tx[j + 1] = sorted_tx[j];
+            j--;
+        }
+        sorted_idx[j + 1] = key_idx;
+        sorted_tx[j + 1] = key_tx;
+    }
+
+    // Data rows (sorted by dtnirsw TX port)
+    for (int si = 0; si < count; si++) {
+        struct emb_latency_result *r = &results[sorted_idx[si]];
+
+        // Get dtnirsw port numbers
+        uint16_t dtnirsw_tx, dtnirsw_rx;
+        get_dtnirsw_ports(r->tx_port, r->rx_port, r->vlan_id, &dtnirsw_tx, &dtnirsw_rx);
+
+        // Get loopback and S&F for unit latency calculation
+        double loopback_us = get_loopback_latency_us(r->tx_port);
+        double sf_us = get_sf_delay_us(dtnirsw_tx, dtnirsw_rx);
+
+        char min_str[16], avg_str[16], max_str[16], unit_str[16], rxtx_str[16];
+
+        if (r->rx_count > 0) {
+            double avg_us = ns_to_us(r->avg_latency_ns);
+            double unit_us = avg_us - loopback_us - sf_us;
+            if (unit_us < 0) unit_us = 0;
+
+            snprintf(min_str, sizeof(min_str), "%9.2f", ns_to_us(r->min_latency_ns));
+            snprintf(avg_str, sizeof(avg_str), "%9.2f", avg_us);
+            snprintf(max_str, sizeof(max_str), "%9.2f", ns_to_us(r->max_latency_ns));
+            snprintf(unit_str, sizeof(unit_str), "%9.2f", unit_us);
+        } else {
+            snprintf(min_str, sizeof(min_str), "%9s", "-");
+            snprintf(avg_str, sizeof(avg_str), "%9s", "-");
+            snprintf(max_str, sizeof(max_str), "%9s", "-");
+            snprintf(unit_str, sizeof(unit_str), "%9s", "-");
+        }
+        snprintf(rxtx_str, sizeof(rxtx_str), "%4u/%-4u", r->rx_count, r->tx_count);
+
+        const char *result_str = r->passed ? "PASS" : "FAIL";
+
+        printf("║%*u║%*u║%*u║%*u║%*s║%*s║%*s║%*s║%*s║%*s║\n",
+               UT_COL_PORT, dtnirsw_tx,
+               UT_COL_PORT, dtnirsw_rx,
+               UT_COL_VLAN, r->vlan_id,
+               UT_COL_VLID, r->vl_id,
+               UT_COL_LAT, min_str,
+               UT_COL_LAT, avg_str,
+               UT_COL_LAT, max_str,
+               UT_COL_LAT, unit_str,
+               UT_COL_RXTX, rxtx_str,
+               UT_COL_RESULT, result_str);
+    }
+
+    // Summary separator
+    UT_PRINT_LINE("╠", "╩", "╣", "═");
+
+    // Summary line
+    {
+        char summary[256];
+        if (successful > 0) {
+            snprintf(summary, sizeof(summary),
+                    "SUMMARY: PASS %d/%d | Avg: %.2f us | Max: %.2f us | Packets/VLAN: 1",
+                    passed_count, count,
+                    total_avg_latency / successful,
+                    max_of_maxs);
+        } else {
+            snprintf(summary, sizeof(summary),
+                    "SUMMARY: PASS %d/%d | Packets/VLAN: 1",
+                    passed_count, count);
+        }
+        int slen = strlen(summary);
+        int spad = (UT_TABLE_WIDTH - slen) / 2;
+        printf("║");
+        for (int i = 0; i < spad; i++) printf(" ");
+        printf("%s", summary);
+        for (int i = 0; i < UT_TABLE_WIDTH - spad - slen; i++) printf(" ");
+        printf("║\n");
+    }
+
+    // Formula info line
+    {
+        const char *lb_source = (g_emb_latency.loopback_completed && !g_emb_latency.loopback_skipped)
+                                 ? "Measured" : "Default (14us)";
+        char info[256];
+        snprintf(info, sizeof(info),
+                "Unit = Avg - Loopback(%s) - S&F | Threshold: %.1f us",
+                lb_source, EMB_LAT_UNIT_THRESHOLD_US);
+        int ilen = strlen(info);
+        int ipad = (UT_TABLE_WIDTH - ilen) / 2;
+        printf("║");
+        for (int i = 0; i < ipad; i++) printf(" ");
+        printf("%s", info);
+        for (int i = 0; i < UT_TABLE_WIDTH - ipad - ilen; i++) printf(" ");
+        printf("║\n");
+    }
+
+    // Bottom border
+    UT_PRINT_LINE("╚", "╩", "╝", "═");
+
+    printf("\n");
+    fflush(stdout);
+
+    #undef UT_COL_PORT
+    #undef UT_COL_VLAN
+    #undef UT_COL_VLID
+    #undef UT_COL_LAT
+    #undef UT_COL_RXTX
+    #undef UT_COL_RESULT
+    #undef UT_TABLE_WIDTH
+    #undef UT_PRINT_LINE
 }
 
 void emb_latency_print_summary(void) {
