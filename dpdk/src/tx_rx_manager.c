@@ -2021,13 +2021,54 @@ int rx_worker(void *arg)
     // ==========================================
     // CALCULATE LOST PACKETS (watermark-based)
     // Lost = (max_seq + 1) - pkt_count for each VL-ID
-    // Only queue 0 does this calculation to avoid double counting
     // ==========================================
+#if STATS_MODE_DTN
+    // DTN modu: Her queue kendi VL-ID aralığı için lost hesaplar
+    // (Flow steering ile her queue = 1 VLAN = 1 DTN port, aralıklar çakışmaz)
+    {
+        uint64_t queue_lost = 0;
+        uint16_t vl_start = get_rx_vl_id_range_start(params->port_id, params->queue_id);
+        uint16_t vl_end = get_rx_vl_id_range_end(params->port_id, params->queue_id);
+
+        for (uint16_t vl = vl_start; vl < vl_end && vl <= MAX_VL_ID; vl++)
+        {
+            struct vl_sequence_tracker *seq_tracker = &vl_tracker->vl_trackers[vl];
+            if (__atomic_load_n(&seq_tracker->initialized, __ATOMIC_ACQUIRE))
+            {
+                uint64_t max_seq = __atomic_load_n(&seq_tracker->max_seq, __ATOMIC_ACQUIRE);
+                uint64_t pkt_count = __atomic_load_n(&seq_tracker->pkt_count, __ATOMIC_ACQUIRE);
+
+#if TOKEN_BUCKET_TX_ENABLED
+                uint64_t min_seq = __atomic_load_n(&seq_tracker->min_seq, __ATOMIC_ACQUIRE);
+                uint64_t expected_count = max_seq - min_seq + 1;
+#else
+                uint64_t expected_count = max_seq + 1;
+#endif
+                if (expected_count > pkt_count)
+                {
+                    queue_lost += (expected_count - pkt_count);
+                }
+            }
+        }
+
+        if (queue_lost > 0)
+        {
+            rte_atomic64_add(&rx_stats_per_port[params->port_id].lost_pkts, queue_lost);
+            if (my_dtn_port != DTN_VLAN_INVALID) {
+                rte_atomic64_add(&dtn_stats[my_dtn_port].lost_pkts, queue_lost);
+            }
+            printf("RX Worker Port %u Q%u (DTN %u): %lu lost packets (VL-ID %u-%u)\n",
+                   params->port_id, params->queue_id,
+                   my_dtn_port != DTN_VLAN_INVALID ? my_dtn_port : 0xFF,
+                   queue_lost, vl_start, vl_end - 1);
+        }
+    }
+#else
+    // Eski mod: Sadece queue 0 tüm VL-ID'ler için hesaplar (double-counting önlenir)
     if (params->queue_id == 0)
     {
         uint64_t total_lost = 0;
 
-        // Check ALL VL-IDs that were initialized
         for (uint16_t vl = 0; vl <= MAX_VL_ID; vl++)
         {
             struct vl_sequence_tracker *seq_tracker = &vl_tracker->vl_trackers[vl];
@@ -2037,13 +2078,9 @@ int rx_worker(void *arg)
                 uint64_t pkt_count = __atomic_load_n(&seq_tracker->pkt_count, __ATOMIC_ACQUIRE);
 
 #if TOKEN_BUCKET_TX_ENABLED
-                // Lost = expected total (max_seq - min_seq + 1) - actual received
-                // min_seq handles sequences that don't start from 0 (e.g., after restart)
                 uint64_t min_seq = __atomic_load_n(&seq_tracker->min_seq, __ATOMIC_ACQUIRE);
                 uint64_t expected_count = max_seq - min_seq + 1;
 #else
-                // Lost = expected total (max_seq + 1) - actual received
-                // Assuming sequences start from 0
                 uint64_t expected_count = max_seq + 1;
 #endif
                 if (expected_count > pkt_count)
@@ -2059,14 +2096,8 @@ int rx_worker(void *arg)
             printf("RX Worker Port %u Q%u: Calculated %lu lost packets (watermark-based)\n",
                    params->port_id, params->queue_id, total_lost);
         }
-
-#if STATS_MODE_DTN
-        // DTN port bazlı lost hesaplama: Bu queue'nun VL-ID aralığındaki lost
-        if (my_dtn_port != DTN_VLAN_INVALID && total_lost > 0) {
-            rte_atomic64_add(&dtn_stats[my_dtn_port].lost_pkts, total_lost);
-        }
-#endif
     }
+#endif
 
     printf("RX Worker stopped: Port %u Q%u\n", params->port_id, params->queue_id);
     return 0;
