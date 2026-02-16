@@ -103,11 +103,11 @@ static void helper_print_dtn_stats(const struct ports_config *ports_config,
     for (uint16_t dtn = 0; dtn < DTN_DPDK_PORT_COUNT; dtn++) {
         const struct dtn_port_map_entry *entry = &dtn_port_map[dtn];
 
-        // DTN TX (DTN→Server) = Server RX = HW q_ipackets[queue] on tx_server_port
-        uint16_t srv_rx_port = entry->tx_server_port;
-        uint16_t srv_rx_queue = entry->tx_server_queue;
-        uint64_t dtn_tx_pkts = port_hw_stats[srv_rx_port].q_ipackets[srv_rx_queue];
-        uint64_t dtn_tx_bytes = port_hw_stats[srv_rx_port].q_ibytes[srv_rx_queue];
+        // DTN TX (DTN→Server) = Software counters (raw socket hariç, sadece DTN paketleri)
+        uint64_t good = rte_atomic64_read(&dtn_stats[dtn].good_pkts);
+        uint64_t bad = rte_atomic64_read(&dtn_stats[dtn].bad_pkts);
+        uint64_t dtn_tx_pkts = good + bad;
+        uint64_t dtn_tx_bytes = rte_atomic64_read(&dtn_stats[dtn].internal_rx_bytes);
 
         // DTN RX (Server→DTN) = Server TX = HW q_opackets[queue] on rx_server_port
         uint16_t srv_tx_port = entry->rx_server_port;
@@ -126,8 +126,6 @@ static void helper_print_dtn_stats(const struct ports_config *ports_config,
         dtn_prev_rx_bytes[dtn] = dtn_rx_bytes;
 
         // PRBS istatistikleri (dtn_stats'ten)
-        uint64_t good = rte_atomic64_read(&dtn_stats[dtn].good_pkts);
-        uint64_t bad = rte_atomic64_read(&dtn_stats[dtn].bad_pkts);
         uint64_t lost = rte_atomic64_read(&dtn_stats[dtn].lost_pkts);
         uint64_t bit_errors = rte_atomic64_read(&dtn_stats[dtn].bit_errors);
 
