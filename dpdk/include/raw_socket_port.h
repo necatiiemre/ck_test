@@ -298,4 +298,8 @@ void reset_raw_socket_stats(void);
 void cleanup_raw_socket_ports(void);
 uint64_t get_time_ns(void);
 
+// Global sequence tracking lost counts (DTN TX kalite ölçümü)
+uint64_t get_global_sequence_lost(void);      // Port 12
+uint64_t get_global_sequence_lost_p13(void);   // Port 13
+
 #endif /* RAW_SOCKET_PORT_H */

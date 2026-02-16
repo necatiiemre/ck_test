@@ -175,14 +175,16 @@ static void helper_print_dtn_stats(const struct ports_config *ports_config,
         double tx_gbps = to_gbps(tx_delta);
         double rx_gbps = to_gbps(rx_delta);
 
+        uint64_t dtn32_lost = get_global_sequence_lost();
+
         double ber = 0.0;
         uint64_t total_bits = dtn32_tx_bytes * 8;
         if (total_bits > 0) ber = (double)dtn32_bit_err / (double)total_bits;
 
-        printf("│  32  │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │         N/A         │ %19lu │ %11.2e │\n",
+        printf("│  32  │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │ %19lu │ %19lu │ %11.2e │\n",
                dtn32_tx_pkts, dtn32_tx_bytes, tx_gbps,
                dtn32_rx_pkts, dtn32_rx_bytes, rx_gbps,
-               dtn32_good, dtn32_bad, dtn32_bit_err, ber);
+               dtn32_good, dtn32_bad, dtn32_lost, dtn32_bit_err, ber);
     }
 
     // DTN Port 33 (Port 13 - 100M raw socket)
@@ -213,14 +215,16 @@ static void helper_print_dtn_stats(const struct ports_config *ports_config,
         double tx_gbps = to_gbps(tx_delta);
         double rx_gbps = to_gbps(rx_delta);
 
+        uint64_t dtn33_lost = get_global_sequence_lost_p13();
+
         double ber = 0.0;
         uint64_t total_bits = dtn33_tx_bytes * 8;
         if (total_bits > 0) ber = (double)dtn33_bit_err / (double)total_bits;
 
-        printf("│  33  │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │         N/A         │ %19lu │ %11.2e │\n",
+        printf("│  33  │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │ %23.2f │ %19lu │ %19lu │ %19lu │ %19lu │ %11.2e │\n",
                dtn33_tx_pkts, dtn33_tx_bytes, tx_gbps,
                dtn33_rx_pkts, dtn33_rx_bytes, rx_gbps,
-               dtn33_good, dtn33_bad, dtn33_bit_err, ber);
+               dtn33_good, dtn33_bad, dtn33_lost, dtn33_bit_err, ber);
     }
 
     printf("└──────┴─────────────────────┴─────────────────────┴─────────────────────────┴─────────────────────┴─────────────────────┴─────────────────────────┴─────────────────────┴─────────────────────┴─────────────────────┴─────────────────────┴─────────────┘\n");
