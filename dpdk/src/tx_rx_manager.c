@@ -1977,6 +1977,7 @@ int rx_worker(void *arg)
                     rte_atomic64_add(&dtn_stats[my_dtn_port].good_pkts, local_good);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].bad_pkts, local_bad);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].bit_errors, local_bits);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].lost_pkts, local_lost);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
@@ -2011,6 +2012,7 @@ int rx_worker(void *arg)
             rte_atomic64_add(&dtn_stats[my_dtn_port].good_pkts, local_good);
             rte_atomic64_add(&dtn_stats[my_dtn_port].bad_pkts, local_bad);
             rte_atomic64_add(&dtn_stats[my_dtn_port].bit_errors, local_bits);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].lost_pkts, local_lost);
             rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
             rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
             rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
