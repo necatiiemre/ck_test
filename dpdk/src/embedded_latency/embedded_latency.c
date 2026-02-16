@@ -1984,9 +1984,32 @@ void emb_latency_print_unit(void) {
     // Header bottom separator
     UT_PRINT_LINE("╠", "╬", "╣", "═");
 
-    // Data rows
+    // Build sorted index array by dtnirsw TX port (ascending)
+    int sorted_idx[count];
+    uint16_t sorted_tx[count];
     for (int i = 0; i < count; i++) {
-        struct emb_latency_result *r = &results[i];
+        sorted_idx[i] = i;
+        uint16_t dtx, drx;
+        get_dtnirsw_ports(results[i].tx_port, results[i].rx_port, results[i].vlan_id, &dtx, &drx);
+        sorted_tx[i] = dtx;
+    }
+    // Simple insertion sort (count is small, ~34)
+    for (int i = 1; i < count; i++) {
+        int key_idx = sorted_idx[i];
+        uint16_t key_tx = sorted_tx[i];
+        int j = i - 1;
+        while (j >= 0 && sorted_tx[j] > key_tx) {
+            sorted_idx[j + 1] = sorted_idx[j];
+            sorted_tx[j + 1] = sorted_tx[j];
+            j--;
+        }
+        sorted_idx[j + 1] = key_idx;
+        sorted_tx[j + 1] = key_tx;
+    }
+
+    // Data rows (sorted by dtnirsw TX port)
+    for (int si = 0; si < count; si++) {
+        struct emb_latency_result *r = &results[sorted_idx[si]];
 
         // Get dtnirsw port numbers
         uint16_t dtnirsw_tx, dtnirsw_rx;
