@@ -171,7 +171,6 @@ int main(int argc, char const *argv[])
                 // Re-print embedded latency results to log file
                 // (They were printed to terminal before fork, now save to log)
                 printf("=== Embedded Latency Test Results (from interactive session) ===\n");
-                emb_latency_print_loopback();
                 emb_latency_print_unit();
                 if (latency_fails > 0) {
                     printf("WARNING: %d test(s) failed!\n", latency_fails);
