@@ -7,6 +7,7 @@
 #include <rte_cycles.h>
 #include <rte_ip.h>
 #include <rte_udp.h>
+#include <rte_flow.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,6 +34,21 @@ void port_vlans_load_config(bool ate_mode)
 
 // Global RX statistics per port
 struct rx_stats rx_stats_per_port[MAX_PORTS];
+
+#if STATS_MODE_DTN
+// DTN port bazlı istatistikler
+struct dtn_port_stats dtn_stats[DTN_PORT_COUNT];
+
+// DTN port mapping tablosu
+struct dtn_port_map_entry dtn_port_map[DTN_PORT_COUNT] = DTN_PORT_MAP_INIT;
+
+// VLAN → DTN port hızlı lookup tablosu
+uint8_t vlan_to_dtn_port[DTN_VLAN_LOOKUP_SIZE];
+
+// VLAN flow rule handle'ları (cleanup için)
+#define DTN_MAX_FLOW_RULES_PER_PORT 4
+static struct rte_flow *dtn_flow_handles[MAX_PORTS][DTN_MAX_FLOW_RULES_PER_PORT] = {{NULL}};
+#endif /* STATS_MODE_DTN */
 
 // Global VL-ID sequence trackers per port (for RX validation)
 struct port_vl_tracker port_vl_trackers[MAX_PORTS];
@@ -390,6 +406,172 @@ void init_rx_stats(void)
     }
     printf("RX statistics and VL-ID sequence trackers initialized for all ports\n");
 }
+
+#if STATS_MODE_DTN
+// ==========================================
+// DTN PORT MAPPING & STATISTICS INIT
+// ==========================================
+
+void init_dtn_port_map(void)
+{
+    // VLAN → DTN port lookup tablosunu doldur
+    memset(vlan_to_dtn_port, DTN_VLAN_INVALID, sizeof(vlan_to_dtn_port));
+
+    for (int i = 0; i < DTN_DPDK_PORT_COUNT; i++) {
+        // DTN TX VLAN (DTN→Server, server RX'te görülür)
+        if (dtn_port_map[i].tx_vlan < DTN_VLAN_LOOKUP_SIZE) {
+            vlan_to_dtn_port[dtn_port_map[i].tx_vlan] = (uint8_t)i;
+        }
+        // DTN RX VLAN (Server→DTN, server TX'te kullanılır)
+        // Bu VLAN'lar da lookup'ta olsun (TX worker'da kullanılabilir)
+        if (dtn_port_map[i].rx_vlan < DTN_VLAN_LOOKUP_SIZE) {
+            // rx_vlan'ı ayrı bir lookup'a da koyabiliriz, şimdilik tx_vlan yeterli
+            // çünkü PRBS check server RX'te yapılır = tx_vlan üzerinden
+        }
+    }
+
+    printf("\n=== DTN Port Mapping Initialized ===\n");
+    printf("DTN Ports: %d (DPDK: %d, Raw: 2)\n", DTN_PORT_COUNT, DTN_DPDK_PORT_COUNT);
+    printf("VLAN → DTN Port lookup table built\n");
+
+    // Özet tablo yazdır
+    printf("\n  DTN Port | DTN RX (Srv TX)      | DTN TX (Srv RX)\n");
+    printf("  ---------+----------------------+----------------------\n");
+    for (int i = 0; i < DTN_DPDK_PORT_COUNT; i++) {
+        printf("    %2d     | SrvPort%u Q%u VLAN%-3u | SrvPort%u Q%u VLAN%-3u\n",
+               dtn_port_map[i].dtn_port_id,
+               dtn_port_map[i].rx_server_port, dtn_port_map[i].rx_server_queue,
+               dtn_port_map[i].rx_vlan,
+               dtn_port_map[i].tx_server_port, dtn_port_map[i].tx_server_queue,
+               dtn_port_map[i].tx_vlan);
+    }
+    printf("    32     | Port 12 (1G)         | Port 12 (1G)\n");
+    printf("    33     | Port 13 (100M)       | Port 13 (100M)\n");
+    printf("================================================\n\n");
+}
+
+void init_dtn_stats(void)
+{
+    for (int i = 0; i < DTN_PORT_COUNT; i++) {
+        rte_atomic64_init(&dtn_stats[i].good_pkts);
+        rte_atomic64_init(&dtn_stats[i].bad_pkts);
+        rte_atomic64_init(&dtn_stats[i].bit_errors);
+        rte_atomic64_init(&dtn_stats[i].lost_pkts);
+        rte_atomic64_init(&dtn_stats[i].out_of_order_pkts);
+        rte_atomic64_init(&dtn_stats[i].duplicate_pkts);
+        rte_atomic64_init(&dtn_stats[i].short_pkts);
+        rte_atomic64_init(&dtn_stats[i].total_rx_pkts);
+    }
+    printf("DTN port statistics initialized for %d ports\n", DTN_PORT_COUNT);
+}
+
+// ==========================================
+// DTN VLAN-BASED FLOW STEERING
+// ==========================================
+// Her RX VLAN'ı ilgili queue'ya yönlendirir (1:1 mapping)
+// Böylece HW per-queue stats = per-VLAN = per-DTN port stats
+
+int dtn_flow_rules_install(uint16_t port_id)
+{
+    struct rte_flow_error error;
+    int installed = 0;
+
+    // Bu port'un kaç RX VLAN'ı var?
+    uint16_t rx_vlan_count = port_vlans[port_id].rx_vlan_count;
+    if (rx_vlan_count == 0 || rx_vlan_count > DTN_MAX_FLOW_RULES_PER_PORT) {
+        printf("DTN Flow: Port %u has %u RX VLANs, skipping\n", port_id, rx_vlan_count);
+        return 0;
+    }
+
+    printf("DTN Flow: Installing VLAN→Queue rules on Port %u (%u VLANs)...\n",
+           port_id, rx_vlan_count);
+
+    for (uint16_t q = 0; q < rx_vlan_count; q++) {
+        uint16_t vlan_id = port_vlans[port_id].rx_vlans[q];
+
+        struct rte_flow_attr attr;
+        struct rte_flow_item pattern[4];
+        struct rte_flow_action action[2];
+
+        memset(&attr, 0, sizeof(attr));
+        memset(pattern, 0, sizeof(pattern));
+        memset(action, 0, sizeof(action));
+
+        // Flow attributes
+        attr.ingress = 1;
+        attr.priority = 1;  // PTP'den düşük öncelik (PTP priority=0)
+
+        // Action: Queue'ya yönlendir
+        struct rte_flow_action_queue queue_action;
+        queue_action.index = q;
+
+        action[0].type = RTE_FLOW_ACTION_TYPE_QUEUE;
+        action[0].conf = &queue_action;
+        action[1].type = RTE_FLOW_ACTION_TYPE_END;
+
+        // Pattern: ETH (any) → VLAN (tci match)
+        // ETH layer
+        pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
+        pattern[0].spec = NULL;
+        pattern[0].mask = NULL;
+
+        // VLAN layer: match on VLAN ID
+        struct rte_flow_item_vlan vlan_spec;
+        struct rte_flow_item_vlan vlan_mask;
+        memset(&vlan_spec, 0, sizeof(vlan_spec));
+        memset(&vlan_mask, 0, sizeof(vlan_mask));
+
+        // TCI = (priority << 13) | (dei << 12) | vlan_id
+        // Sadece VLAN ID'ye göre eşleştir (alt 12 bit)
+        vlan_spec.tci = rte_cpu_to_be_16(vlan_id);
+        vlan_mask.tci = rte_cpu_to_be_16(0x0FFF);  // Sadece VLAN ID alanı
+
+        pattern[1].type = RTE_FLOW_ITEM_TYPE_VLAN;
+        pattern[1].spec = &vlan_spec;
+        pattern[1].mask = &vlan_mask;
+
+        pattern[2].type = RTE_FLOW_ITEM_TYPE_END;
+
+        // Validate + Create
+        int ret = rte_flow_validate(port_id, &attr, pattern, action, &error);
+        if (ret != 0) {
+            printf("DTN Flow: Port %u VLAN %u validate failed: %s\n",
+                   port_id, vlan_id,
+                   error.message ? error.message : "unknown");
+            continue;
+        }
+
+        struct rte_flow *flow = rte_flow_create(port_id, &attr, pattern, action, &error);
+        if (!flow) {
+            printf("DTN Flow: Port %u VLAN %u create failed: %s\n",
+                   port_id, vlan_id,
+                   error.message ? error.message : "unknown");
+            continue;
+        }
+
+        dtn_flow_handles[port_id][q] = flow;
+        installed++;
+        printf("  VLAN %u → Queue %u\n", vlan_id, q);
+    }
+
+    printf("DTN Flow: Port %u: %d/%u rules installed\n", port_id, installed, rx_vlan_count);
+    return (installed == rx_vlan_count) ? 0 : -1;
+}
+
+void dtn_flow_rules_remove(uint16_t port_id)
+{
+    if (port_id >= MAX_PORTS) return;
+
+    for (int q = 0; q < DTN_MAX_FLOW_RULES_PER_PORT; q++) {
+        if (dtn_flow_handles[port_id][q]) {
+            struct rte_flow_error error;
+            rte_flow_destroy(port_id, dtn_flow_handles[port_id][q], &error);
+            dtn_flow_handles[port_id][q] = NULL;
+        }
+    }
+}
+#endif /* STATS_MODE_DTN */
+
 // ==========================================
 // VLAN CONFIGURATION FUNCTIONS
 // ==========================================
@@ -638,6 +820,24 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
         return ret;
     }
 
+#if STATS_MODE_DTN
+    // DTN modu: RSS kapalı, rte_flow VLAN steering kullanılacak (port start sonrası)
+    if (config->nb_rx_queues > 1)
+    {
+        // RSS'i yine de açıyoruz çünkü rte_flow match olmayan paketler için fallback lazım
+        port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+        uint64_t rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_UDP | RTE_ETH_RSS_TCP;
+        rss_hf &= dev_info.flow_type_rss_offloads;
+        port_conf.rx_adv_conf.rss_conf.rss_key = NULL;
+        port_conf.rx_adv_conf.rss_conf.rss_hf = rss_hf;
+        printf("Port %u DTN mode: RSS as fallback, VLAN flow steering will be installed\n", port_id);
+    }
+    else
+    {
+        port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
+    }
+#else
+    // Eski mod: RSS hash tabanlı dağıtım
     if (config->nb_rx_queues > 1)
     {
         port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
@@ -652,6 +852,7 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
     {
         port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
     }
+#endif
 
     port_conf.txmode.mq_mode = RTE_ETH_MQ_TX_NONE;
 
@@ -702,6 +903,34 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
         return ret;
     }
 
+#if STATS_MODE_DTN
+    // DTN modu: VLAN-based flow steering kur (port start sonrası)
+    if (config->nb_rx_queues > 1)
+    {
+        printf("Port %u: Installing DTN VLAN→Queue flow rules...\n", port_id);
+        int flow_ret = dtn_flow_rules_install(port_id);
+        if (flow_ret != 0) {
+            printf("Warning: DTN flow rules incomplete on port %u, falling back to RSS\n", port_id);
+        }
+
+        // RETA'yı yine de ayarla (flow rule miss durumunda fallback)
+        struct rte_eth_rss_reta_entry64 reta_conf[16];
+        memset(reta_conf, 0, sizeof(reta_conf));
+        uint16_t reta_size = dev_info.reta_size;
+        if (reta_size > 0) {
+            const uint16_t num_data_rx_queues = NUM_RX_CORES;
+            for (uint16_t i = 0; i < reta_size; i++) {
+                uint16_t idx = i / RTE_ETH_RETA_GROUP_SIZE;
+                uint16_t shift = i % RTE_ETH_RETA_GROUP_SIZE;
+                if (i % RTE_ETH_RETA_GROUP_SIZE == 0)
+                    reta_conf[idx].mask = ~0ULL;
+                reta_conf[idx].reta[shift] = i % num_data_rx_queues;
+            }
+            rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
+        }
+    }
+#else
+    // Eski mod: RSS RETA config
     if (config->nb_rx_queues > 1)
     {
         struct rte_eth_rss_reta_entry64 reta_conf[16];
@@ -710,9 +939,6 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
         uint16_t reta_size = dev_info.reta_size;
         if (reta_size > 0)
         {
-            // RSS sadece data RX queue'larına (0..NUM_RX_CORES-1) dağıtmalı.
-            // PTP queue (5) flow rule ile yönlendiriliyor, RSS'den bağımsız.
-            // nb_rx_queues PTP dahil 6 olabilir, ama data queue sayısı NUM_RX_CORES.
             const uint16_t num_data_rx_queues = NUM_RX_CORES;
             printf("Port %u: Configuring RETA (size: %u) for %u data RX queues (total RX queues: %u)\n",
                    port_id, reta_size, num_data_rx_queues, config->nb_rx_queues);
@@ -741,6 +967,7 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
             }
         }
     }
+#endif
 
     ret = rte_eth_promiscuous_enable(port_id);
     if (ret != 0)
@@ -1204,6 +1431,14 @@ int rx_worker(void *arg)
     uint64_t local_external = 0;  // External packets (VL-ID outside expected range)
     uint64_t local_raw_rx = 0, local_raw_bytes = 0;  // Raw socket packet counters
     const uint32_t FLUSH = 131072;
+
+#if STATS_MODE_DTN
+    // DTN modunda: queue_id → VLAN → DTN port (1:1 mapping, flow steering aktif)
+    const uint16_t rx_vlan_for_queue = port_vlans[params->port_id].rx_vlans[params->queue_id];
+    const uint8_t my_dtn_port = (rx_vlan_for_queue < DTN_VLAN_LOOKUP_SIZE)
+                                    ? vlan_to_dtn_port[rx_vlan_for_queue]
+                                    : DTN_VLAN_INVALID;
+#endif
 
     bool first_good = false, first_bad = false;
     bool first_raw_rx = false;  // Track first raw socket packet
@@ -1734,6 +1969,19 @@ int rx_worker(void *arg)
                 // Raw socket RX counters
                 rte_atomic64_add(&rx_stats_per_port[params->port_id].raw_socket_rx_pkts, local_raw_rx);
                 rte_atomic64_add(&rx_stats_per_port[params->port_id].raw_socket_rx_bytes, local_raw_bytes);
+
+#if STATS_MODE_DTN
+                // DTN port bazlı PRBS stats (queue = VLAN = DTN port)
+                if (my_dtn_port != DTN_VLAN_INVALID) {
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].total_rx_pkts, local_rx);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].good_pkts, local_good);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].bad_pkts, local_bad);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].bit_errors, local_bits);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
+                }
+#endif
                 local_rx = local_good = local_bad = local_bits = 0;
                 local_lost = local_ooo = local_dup = local_short = local_external = 0;
                 local_raw_rx = local_raw_bytes = 0;
@@ -1756,6 +2004,18 @@ int rx_worker(void *arg)
         // Raw socket RX counters
         rte_atomic64_add(&rx_stats_per_port[params->port_id].raw_socket_rx_pkts, local_raw_rx);
         rte_atomic64_add(&rx_stats_per_port[params->port_id].raw_socket_rx_bytes, local_raw_bytes);
+
+#if STATS_MODE_DTN
+        if (my_dtn_port != DTN_VLAN_INVALID) {
+            rte_atomic64_add(&dtn_stats[my_dtn_port].total_rx_pkts, local_rx);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].good_pkts, local_good);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].bad_pkts, local_bad);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].bit_errors, local_bits);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
+        }
+#endif
     }
 
     // ==========================================
@@ -1799,6 +2059,13 @@ int rx_worker(void *arg)
             printf("RX Worker Port %u Q%u: Calculated %lu lost packets (watermark-based)\n",
                    params->port_id, params->queue_id, total_lost);
         }
+
+#if STATS_MODE_DTN
+        // DTN port bazlı lost hesaplama: Bu queue'nun VL-ID aralığındaki lost
+        if (my_dtn_port != DTN_VLAN_INVALID && total_lost > 0) {
+            rte_atomic64_add(&dtn_stats[my_dtn_port].lost_pkts, total_lost);
+        }
+#endif
     }
 
     printf("RX Worker stopped: Port %u Q%u\n", params->port_id, params->queue_id);
