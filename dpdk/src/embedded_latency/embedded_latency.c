@@ -1887,10 +1887,127 @@ void emb_latency_print(void) {
 }
 
 void emb_latency_print_loopback(void) {
+    struct emb_latency_result *results = g_emb_latency.loopback_results;
+    int count = g_emb_latency.loopback_result_count;
+
+    // Calculate statistics
+    int successful = 0;
+    int passed_count = 0;
+    double total_avg_latency = 0.0;
+    double max_of_maxs = 0.0;
+
+    for (int i = 0; i < count; i++) {
+        struct emb_latency_result *r = &results[i];
+        if (r->rx_count > 0) {
+            successful++;
+            double avg = ns_to_us(r->avg_latency_ns);
+            total_avg_latency += avg;
+            double max_lat = ns_to_us(r->max_latency_ns);
+            if (max_lat > max_of_maxs) max_of_maxs = max_lat;
+        }
+        if (r->passed) passed_count++;
+    }
+
+    printf("\n");
+    fflush(stdout);
+
     char title[128];
     snprintf(title, sizeof(title), "LOOPBACK TEST RESULTS (Switch Latency) [TS: %s]",
              g_using_hw_timestamps ? "HW" : "SW!");
-    print_results_table(title, g_emb_latency.loopback_results, g_emb_latency.loopback_result_count);
+
+    // Top border
+    print_table_line("╔", "╦", "╗", "═");
+    print_table_title(title);
+    print_table_line("╠", "╬", "╣", "═");
+
+    // Header row
+    printf("║%*s║%*s║%*s║%*s║%*s║%*s║%*s║%*s║%*s║\n",
+           COL_PORT, "TX Port",
+           COL_PORT, "RX Port",
+           COL_VLAN, "VLAN",
+           COL_VLID, "VL-ID",
+           COL_LAT, "Min (us)",
+           COL_LAT, "Avg (us)",
+           COL_LAT, "Max (us)",
+           COL_RXTX, "RX/TX",
+           COL_RESULT, "Result");
+
+    print_table_line("╠", "╬", "╣", "═");
+
+    // Build sorted index array by dtnirsw TX port (ascending)
+    int sorted_idx[count];
+    uint16_t sorted_tx[count];
+    for (int i = 0; i < count; i++) {
+        sorted_idx[i] = i;
+        uint16_t dtx, drx;
+        get_dtnirsw_ports(results[i].tx_port, results[i].rx_port, results[i].vlan_id, &dtx, &drx);
+        sorted_tx[i] = dtx;
+    }
+    for (int i = 1; i < count; i++) {
+        int key_idx = sorted_idx[i];
+        uint16_t key_tx = sorted_tx[i];
+        int j = i - 1;
+        while (j >= 0 && sorted_tx[j] > key_tx) {
+            sorted_idx[j + 1] = sorted_idx[j];
+            sorted_tx[j + 1] = sorted_tx[j];
+            j--;
+        }
+        sorted_idx[j + 1] = key_idx;
+        sorted_tx[j + 1] = key_tx;
+    }
+
+    // Data rows (sorted by dtnirsw TX port)
+    for (int si = 0; si < count; si++) {
+        struct emb_latency_result *r = &results[sorted_idx[si]];
+
+        uint16_t dtnirsw_tx, dtnirsw_rx;
+        get_dtnirsw_ports(r->tx_port, r->rx_port, r->vlan_id, &dtnirsw_tx, &dtnirsw_rx);
+
+        char min_str[16], avg_str[16], max_str[16], rxtx_str[16];
+        const char *result_str = r->passed ? "PASS" : "FAIL";
+
+        if (r->rx_count > 0) {
+            snprintf(min_str, sizeof(min_str), "%9.2f", ns_to_us(r->min_latency_ns));
+            snprintf(avg_str, sizeof(avg_str), "%9.2f", ns_to_us(r->avg_latency_ns));
+            snprintf(max_str, sizeof(max_str), "%9.2f", ns_to_us(r->max_latency_ns));
+        } else {
+            snprintf(min_str, sizeof(min_str), "%9s", "-");
+            snprintf(avg_str, sizeof(avg_str), "%9s", "-");
+            snprintf(max_str, sizeof(max_str), "%9s", "-");
+        }
+        snprintf(rxtx_str, sizeof(rxtx_str), "%4u/%-4u", r->rx_count, r->tx_count);
+
+        printf("║%*u║%*u║%*u║%*u║%*s║%*s║%*s║%*s║%*s║\n",
+               COL_PORT, dtnirsw_tx,
+               COL_PORT, dtnirsw_rx,
+               COL_VLAN, r->vlan_id,
+               COL_VLID, r->vl_id,
+               COL_LAT, min_str,
+               COL_LAT, avg_str,
+               COL_LAT, max_str,
+               COL_RXTX, rxtx_str,
+               COL_RESULT, result_str);
+    }
+
+    // Summary
+    print_table_line("╠", "╩", "╣", "═");
+    char summary[128];
+    if (successful > 0) {
+        snprintf(summary, sizeof(summary),
+                "SUMMARY: PASS %d/%d | Avg: %.2f us | Max: %.2f us | Packets/VLAN: 1",
+                passed_count, count,
+                total_avg_latency / successful,
+                max_of_maxs);
+    } else {
+        snprintf(summary, sizeof(summary),
+                "SUMMARY: PASS %d/%d | Packets/VLAN: 1",
+                passed_count, count);
+    }
+    print_table_title(summary);
+    print_table_line("╚", "╩", "╝", "═");
+
+    printf("\n");
+    fflush(stdout);
 }
 
 void emb_latency_print_unit(void) {
