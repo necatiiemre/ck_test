@@ -172,15 +172,15 @@ struct raw_rx_source_config
 // VL-ID hesaplama: vl_id_start + (offset / block_size) * block_step + (offset % block_size)
 
 #else
-// Port 12 TX Targets (4 hedef, toplam 900 Mbps)
+// Port 12 TX Targets (4 hedef, toplam 920 Mbps)
 // Port 13'e gönderim kaldırıldı, sadece DPDK portlarına (2,3,4,5) gönderim
-// 4 × 225 Mbps = 900 Mbps total (1G link, ~90% utilization — DTN 32 RX hedefi: 0.90 Gbps)
+// 4 × 230 Mbps = 920 Mbps total (1G link, ~92% utilization)
 #define PORT_12_TX_TARGET_COUNT 4
 #define PORT_12_TX_TARGETS_INIT {                                                               \
-    {.target_id = 0, .dest_port = 2, .rate_mbps = 225, .vl_id_start = 4259, .vl_id_count = 32}, \
-    {.target_id = 1, .dest_port = 3, .rate_mbps = 225, .vl_id_start = 4227, .vl_id_count = 32}, \
-    {.target_id = 2, .dest_port = 4, .rate_mbps = 225, .vl_id_start = 4195, .vl_id_count = 32}, \
-    {.target_id = 3, .dest_port = 5, .rate_mbps = 225, .vl_id_start = 4163, .vl_id_count = 32}, \
+    {.target_id = 0, .dest_port = 2, .rate_mbps = 230, .vl_id_start = 4259, .vl_id_count = 32}, \
+    {.target_id = 1, .dest_port = 3, .rate_mbps = 230, .vl_id_start = 4227, .vl_id_count = 32}, \
+    {.target_id = 2, .dest_port = 4, .rate_mbps = 230, .vl_id_start = 4195, .vl_id_count = 32}, \
+    {.target_id = 3, .dest_port = 5, .rate_mbps = 230, .vl_id_start = 4163, .vl_id_count = 32}, \
 }
 #endif
 
@@ -209,13 +209,13 @@ struct raw_rx_source_config
 // VL-ID hesaplama: vl_id_start + offset * block_step
 
 #else
-// Port 13 TX Targets (2 hedef, toplam ~84 Mbps)
+// Port 13 TX Targets (2 hedef, toplam ~90 Mbps)
 // Port 12'ye gönderim kaldırıldı, DPDK portlarına (7, 1) gönderim eklendi
-// 2 × 42 Mbps = 84 Mbps total (100M link — DTN 33 RX hedefi: 0.09 Gbps)
+// 2 × 45 Mbps = 90 Mbps total (100M link)
 #define PORT_13_TX_TARGET_COUNT 2
 #define PORT_13_TX_TARGETS_INIT {                                                              \
-    {.target_id = 0, .dest_port = 7, .rate_mbps = 42, .vl_id_start = 4131, .vl_id_count = 16}, \
-    {.target_id = 1, .dest_port = 1, .rate_mbps = 42, .vl_id_start = 4147, .vl_id_count = 16}, \
+    {.target_id = 0, .dest_port = 7, .rate_mbps = 45, .vl_id_start = 4131, .vl_id_count = 16}, \
+    {.target_id = 1, .dest_port = 1, .rate_mbps = 45, .vl_id_start = 4147, .vl_id_count = 16}, \
 }
 #endif
 
@@ -521,21 +521,21 @@ struct port_vlan_config
 // ==========================================
 // PORT-BASED RATE LIMITING
 // ==========================================
-// Tüm portlar aynı hedef rate ile çalışır (DTN 0-31 dengelemesi)
-// FAST: DPDK-DPDK portları (1,7,8)
-// MID: Port 12 ile bağlı portlar (2,3,4,5)
-// SLOW: Port 13 ile bağlı portlar (0,6)
+// Port rate'leri raw socket overhead'e göre ayarlanmış:
+// FAST: DPDK-DPDK portları (1,7,8) - raw socket yok, tam hız
+// MID: Port 12 bağlı portlar (2,3,4,5) - 920 Mbps DPDK ext TX overhead
+// SLOW: Port 13 bağlı portlar (0,6) - 90 Mbps raw socket TX overhead
 
 #ifndef TARGET_GBPS_FAST
 #define TARGET_GBPS_FAST 3.74
 #endif
 
 #ifndef TARGET_GBPS_MID
-#define TARGET_GBPS_MID 3.74
+#define TARGET_GBPS_MID 3.50
 #endif
 
 #ifndef TARGET_GBPS_SLOW
-#define TARGET_GBPS_SLOW 3.74
+#define TARGET_GBPS_SLOW 3.69
 #endif
 
 // DPDK-DPDK portları (hızlı)
