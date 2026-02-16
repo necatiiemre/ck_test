@@ -172,15 +172,15 @@ struct raw_rx_source_config
 // VL-ID hesaplama: vl_id_start + (offset / block_size) * block_step + (offset % block_size)
 
 #else
-// Port 12 TX Targets (4 hedef, toplam 880 Mbps)
+// Port 12 TX Targets (4 hedef, toplam 900 Mbps)
 // Port 13'e gönderim kaldırıldı, sadece DPDK portlarına (2,3,4,5) gönderim
-// 4 × 220 Mbps = 880 Mbps total (1G link, ~89% utilization — safe margin)
+// 4 × 225 Mbps = 900 Mbps total (1G link, ~90% utilization — DTN 32 RX hedefi: 0.90 Gbps)
 #define PORT_12_TX_TARGET_COUNT 4
 #define PORT_12_TX_TARGETS_INIT {                                                               \
-    {.target_id = 0, .dest_port = 2, .rate_mbps = 230, .vl_id_start = 4259, .vl_id_count = 32}, \
-    {.target_id = 1, .dest_port = 3, .rate_mbps = 230, .vl_id_start = 4227, .vl_id_count = 32}, \
-    {.target_id = 2, .dest_port = 4, .rate_mbps = 230, .vl_id_start = 4195, .vl_id_count = 32}, \
-    {.target_id = 3, .dest_port = 5, .rate_mbps = 230, .vl_id_start = 4163, .vl_id_count = 32}, \
+    {.target_id = 0, .dest_port = 2, .rate_mbps = 225, .vl_id_start = 4259, .vl_id_count = 32}, \
+    {.target_id = 1, .dest_port = 3, .rate_mbps = 225, .vl_id_start = 4227, .vl_id_count = 32}, \
+    {.target_id = 2, .dest_port = 4, .rate_mbps = 225, .vl_id_start = 4195, .vl_id_count = 32}, \
+    {.target_id = 3, .dest_port = 5, .rate_mbps = 225, .vl_id_start = 4163, .vl_id_count = 32}, \
 }
 #endif
 
@@ -209,12 +209,13 @@ struct raw_rx_source_config
 // VL-ID hesaplama: vl_id_start + offset * block_step
 
 #else
-// Port 13 TX Targets (2 hedef, toplam ~90 Mbps)
+// Port 13 TX Targets (2 hedef, toplam ~84 Mbps)
 // Port 12'ye gönderim kaldırıldı, DPDK portlarına (7, 1) gönderim eklendi
+// 2 × 42 Mbps = 84 Mbps total (100M link — DTN 33 RX hedefi: 0.09 Gbps)
 #define PORT_13_TX_TARGET_COUNT 2
 #define PORT_13_TX_TARGETS_INIT {                                                              \
-    {.target_id = 0, .dest_port = 7, .rate_mbps = 45, .vl_id_start = 4131, .vl_id_count = 16}, \
-    {.target_id = 1, .dest_port = 1, .rate_mbps = 45, .vl_id_start = 4147, .vl_id_count = 16}, \
+    {.target_id = 0, .dest_port = 7, .rate_mbps = 42, .vl_id_start = 4131, .vl_id_count = 16}, \
+    {.target_id = 1, .dest_port = 1, .rate_mbps = 42, .vl_id_start = 4147, .vl_id_count = 16}, \
 }
 #endif
 
@@ -520,19 +521,21 @@ struct port_vlan_config
 // ==========================================
 // PORT-BASED RATE LIMITING
 // ==========================================
-// Port 0, 1, 6, 7, 8: Hızlı (Port 12'ye bağlı değil)
-// Port 2, 3, 4, 5: Yavaş (Port 12'ye bağlı, external TX yapıyorlar)
+// Tüm portlar aynı hedef rate ile çalışır (DTN 0-31 dengelemesi)
+// FAST: DPDK-DPDK portları (1,7,8)
+// MID: Port 12 ile bağlı portlar (2,3,4,5)
+// SLOW: Port 13 ile bağlı portlar (0,6)
 
 #ifndef TARGET_GBPS_FAST
 #define TARGET_GBPS_FAST 3.6
 #endif
 
 #ifndef TARGET_GBPS_MID
-#define TARGET_GBPS_MID 3.4
+#define TARGET_GBPS_MID 3.6
 #endif
 
 #ifndef TARGET_GBPS_SLOW
-#define TARGET_GBPS_SLOW 3.4
+#define TARGET_GBPS_SLOW 3.6
 #endif
 
 // DPDK-DPDK portları (hızlı)
@@ -662,38 +665,38 @@ struct dpdk_ext_tx_port_config
 // ==========================================
 // NORMAL MODE: DPDK External TX → Port 12
 // ==========================================
-// Port 2: VLAN 97-100, VL-ID 4291-4322
-// NOTE: Total external TX must not exceed Port 12's 1G capacity
-// 4 ports × 220 Mbps = 880 Mbps total (within 1G limit)
-#define DPDK_EXT_TX_PORT_2_TARGETS {                                                          \
-    {.queue_id = 0, .vlan_id = 97, .vl_id_start = 4291, .vl_id_count = 8, .rate_mbps = 230},  \
-    {.queue_id = 1, .vlan_id = 98, .vl_id_start = 4299, .vl_id_count = 8, .rate_mbps = 230},  \
-    {.queue_id = 2, .vlan_id = 99, .vl_id_start = 4307, .vl_id_count = 8, .rate_mbps = 230},  \
-    {.queue_id = 3, .vlan_id = 100, .vl_id_start = 4315, .vl_id_count = 8, .rate_mbps = 230}, \
+// Port 2,3,4,5: Her biri 4 target × 56 Mbps = 224 Mbps per port
+// Toplam: 4 port × 224 = 896 Mbps (Port 12 1G NIC altında, drop yok)
+// DTN 32 TX hedefi: 0.90 Gbps
+#define DPDK_EXT_TX_PORT_2_TARGETS {                                                         \
+    {.queue_id = 0, .vlan_id = 97, .vl_id_start = 4291, .vl_id_count = 8, .rate_mbps = 56},  \
+    {.queue_id = 1, .vlan_id = 98, .vl_id_start = 4299, .vl_id_count = 8, .rate_mbps = 56},  \
+    {.queue_id = 2, .vlan_id = 99, .vl_id_start = 4307, .vl_id_count = 8, .rate_mbps = 56},  \
+    {.queue_id = 3, .vlan_id = 100, .vl_id_start = 4315, .vl_id_count = 8, .rate_mbps = 56}, \
 }
 
 // Port 3: VLAN 101-104, VL-ID 4323-4354 (8 per queue, no overlap)
-#define DPDK_EXT_TX_PORT_3_TARGETS {                                                          \
-    {.queue_id = 0, .vlan_id = 101, .vl_id_start = 4323, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 1, .vlan_id = 102, .vl_id_start = 4331, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 2, .vlan_id = 103, .vl_id_start = 4339, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 3, .vlan_id = 104, .vl_id_start = 4347, .vl_id_count = 8, .rate_mbps = 230}, \
+#define DPDK_EXT_TX_PORT_3_TARGETS {                                                         \
+    {.queue_id = 0, .vlan_id = 101, .vl_id_start = 4323, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 1, .vlan_id = 102, .vl_id_start = 4331, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 2, .vlan_id = 103, .vl_id_start = 4339, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 3, .vlan_id = 104, .vl_id_start = 4347, .vl_id_count = 8, .rate_mbps = 56}, \
 }
 
 // Port 4: VLAN 113-116, VL-ID 4355-4386
-#define DPDK_EXT_TX_PORT_4_TARGETS {                                                          \
-    {.queue_id = 0, .vlan_id = 113, .vl_id_start = 4355, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 1, .vlan_id = 114, .vl_id_start = 4363, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 2, .vlan_id = 115, .vl_id_start = 4371, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 3, .vlan_id = 116, .vl_id_start = 4379, .vl_id_count = 8, .rate_mbps = 230}, \
+#define DPDK_EXT_TX_PORT_4_TARGETS {                                                         \
+    {.queue_id = 0, .vlan_id = 113, .vl_id_start = 4355, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 1, .vlan_id = 114, .vl_id_start = 4363, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 2, .vlan_id = 115, .vl_id_start = 4371, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 3, .vlan_id = 116, .vl_id_start = 4379, .vl_id_count = 8, .rate_mbps = 56}, \
 }
 
 // Port 5: VLAN 117-120, VL-ID 4387-4418 → Port 12
-#define DPDK_EXT_TX_PORT_5_TARGETS {                                                          \
-    {.queue_id = 0, .vlan_id = 117, .vl_id_start = 4387, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 1, .vlan_id = 118, .vl_id_start = 4395, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 2, .vlan_id = 119, .vl_id_start = 4403, .vl_id_count = 8, .rate_mbps = 230}, \
-    {.queue_id = 3, .vlan_id = 120, .vl_id_start = 4411, .vl_id_count = 8, .rate_mbps = 230}, \
+#define DPDK_EXT_TX_PORT_5_TARGETS {                                                         \
+    {.queue_id = 0, .vlan_id = 117, .vl_id_start = 4387, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 1, .vlan_id = 118, .vl_id_start = 4395, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 2, .vlan_id = 119, .vl_id_start = 4403, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 3, .vlan_id = 120, .vl_id_start = 4411, .vl_id_count = 8, .rate_mbps = 56}, \
 }
 #endif
 
