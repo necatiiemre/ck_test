@@ -527,15 +527,15 @@ struct port_vlan_config
 // SLOW: Port 13 ile bağlı portlar (0,6)
 
 #ifndef TARGET_GBPS_FAST
-#define TARGET_GBPS_FAST 3.6
+#define TARGET_GBPS_FAST 3.74
 #endif
 
 #ifndef TARGET_GBPS_MID
-#define TARGET_GBPS_MID 3.6
+#define TARGET_GBPS_MID 3.74
 #endif
 
 #ifndef TARGET_GBPS_SLOW
-#define TARGET_GBPS_SLOW 3.6
+#define TARGET_GBPS_SLOW 3.74
 #endif
 
 // DPDK-DPDK portları (hızlı)
@@ -665,38 +665,38 @@ struct dpdk_ext_tx_port_config
 // ==========================================
 // NORMAL MODE: DPDK External TX → Port 12
 // ==========================================
-// Port 2,3,4,5: Her biri 4 target × 56 Mbps = 224 Mbps per port
-// Toplam: 4 port × 224 = 896 Mbps (Port 12 1G NIC altında, drop yok)
-// DTN 32 TX hedefi: 0.90 Gbps
+// Port 2: VLAN 97-100, VL-ID 4291-4322
+// NOTE: Total external TX exceeds Port 12's 1G capacity → NIC-limited
+// DTN 32 TX: ~0.91 Gbps (1G NIC cap)
 #define DPDK_EXT_TX_PORT_2_TARGETS {                                                         \
-    {.queue_id = 0, .vlan_id = 97, .vl_id_start = 4291, .vl_id_count = 8, .rate_mbps = 56},  \
-    {.queue_id = 1, .vlan_id = 98, .vl_id_start = 4299, .vl_id_count = 8, .rate_mbps = 56},  \
-    {.queue_id = 2, .vlan_id = 99, .vl_id_start = 4307, .vl_id_count = 8, .rate_mbps = 56},  \
-    {.queue_id = 3, .vlan_id = 100, .vl_id_start = 4315, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 0, .vlan_id = 97, .vl_id_start = 4291, .vl_id_count = 8, .rate_mbps = 230},  \
+    {.queue_id = 1, .vlan_id = 98, .vl_id_start = 4299, .vl_id_count = 8, .rate_mbps = 230},  \
+    {.queue_id = 2, .vlan_id = 99, .vl_id_start = 4307, .vl_id_count = 8, .rate_mbps = 230},  \
+    {.queue_id = 3, .vlan_id = 100, .vl_id_start = 4315, .vl_id_count = 8, .rate_mbps = 230}, \
 }
 
 // Port 3: VLAN 101-104, VL-ID 4323-4354 (8 per queue, no overlap)
 #define DPDK_EXT_TX_PORT_3_TARGETS {                                                         \
-    {.queue_id = 0, .vlan_id = 101, .vl_id_start = 4323, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 1, .vlan_id = 102, .vl_id_start = 4331, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 2, .vlan_id = 103, .vl_id_start = 4339, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 3, .vlan_id = 104, .vl_id_start = 4347, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 0, .vlan_id = 101, .vl_id_start = 4323, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 1, .vlan_id = 102, .vl_id_start = 4331, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 2, .vlan_id = 103, .vl_id_start = 4339, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 3, .vlan_id = 104, .vl_id_start = 4347, .vl_id_count = 8, .rate_mbps = 230}, \
 }
 
 // Port 4: VLAN 113-116, VL-ID 4355-4386
 #define DPDK_EXT_TX_PORT_4_TARGETS {                                                         \
-    {.queue_id = 0, .vlan_id = 113, .vl_id_start = 4355, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 1, .vlan_id = 114, .vl_id_start = 4363, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 2, .vlan_id = 115, .vl_id_start = 4371, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 3, .vlan_id = 116, .vl_id_start = 4379, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 0, .vlan_id = 113, .vl_id_start = 4355, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 1, .vlan_id = 114, .vl_id_start = 4363, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 2, .vlan_id = 115, .vl_id_start = 4371, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 3, .vlan_id = 116, .vl_id_start = 4379, .vl_id_count = 8, .rate_mbps = 230}, \
 }
 
 // Port 5: VLAN 117-120, VL-ID 4387-4418 → Port 12
 #define DPDK_EXT_TX_PORT_5_TARGETS {                                                         \
-    {.queue_id = 0, .vlan_id = 117, .vl_id_start = 4387, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 1, .vlan_id = 118, .vl_id_start = 4395, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 2, .vlan_id = 119, .vl_id_start = 4403, .vl_id_count = 8, .rate_mbps = 56}, \
-    {.queue_id = 3, .vlan_id = 120, .vl_id_start = 4411, .vl_id_count = 8, .rate_mbps = 56}, \
+    {.queue_id = 0, .vlan_id = 117, .vl_id_start = 4387, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 1, .vlan_id = 118, .vl_id_start = 4395, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 2, .vlan_id = 119, .vl_id_start = 4403, .vl_id_count = 8, .rate_mbps = 230}, \
+    {.queue_id = 3, .vlan_id = 120, .vl_id_start = 4411, .vl_id_count = 8, .rate_mbps = 230}, \
 }
 #endif
 

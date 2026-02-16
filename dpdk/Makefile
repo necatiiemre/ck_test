@@ -12,8 +12,8 @@ HEALTHDIR = src/health_monitor
 NUM_TX_CORES ?= 4
 NUM_RX_CORES ?= 4
 TARGET_GBPS_FAST ?= 3.74
-TARGET_GBPS_MID ?= 3.50
-TARGET_GBPS_SLOW ?= 3.69
+TARGET_GBPS_MID ?= 3.74
+TARGET_GBPS_SLOW ?= 3.74
 USE_VLAN ?=1
 
 # Enable raw socket ports (non-DPDK NICs)
