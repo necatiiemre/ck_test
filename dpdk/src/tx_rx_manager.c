@@ -1140,18 +1140,19 @@ int tx_worker(void *arg)
     uint32_t stagger_slot = (params->port_id * 4 + params->queue_id) % 16;
     uint64_t stagger_offset = stagger_slot * (tsc_hz / 200);  // 5ms per slot
 
-#if TOKEN_BUCKET_TX_ENABLED
-    // Global worker phase: Tüm TX worker'ları paket periyodu içinde eşit dağıt
-    // Stagger offset delay_cycles'ın tam katı olduğunda tüm worker'lar aynı fazda
-    // ateş ediyor (ör: 5ms / 14.286μs = 350.0 tam sayı → 32 paket aynı anda!).
-    // Bu fix ile her worker, periyodun 1/total_workers'lık dilimine kayar.
-    uint32_t total_workers = params->nb_ports * NUM_TX_CORES;
-    uint32_t worker_idx = params->port_id * NUM_TX_CORES + params->queue_id;
-    uint64_t global_phase = worker_idx * (delay_cycles / total_workers);
-    uint64_t next_send_time = rte_get_tsc_cycles() + stagger_offset + global_phase;
-#else
-    uint64_t next_send_time = rte_get_tsc_cycles() + stagger_offset;
-#endif
+    // Per-port local phase: Aynı port üzerindeki TX worker'ları delay_cycles
+    // periyodu içinde eşit aralıklarla dağıt. Böylece Queue 0 ve Queue 1
+    // asla aynı anda paket göndermez → DTN IRSW'de buffer taşması önlenir.
+    //
+    // Eski hesap (global phase) tüm worker'ları global olarak dağıtıyordu:
+    //   global_phase = worker_idx * (delay_cycles / total_workers)
+    // Bu durumda aynı port'un 2 queue'su arasında sadece delay_cycles/16 fark
+    // oluyordu (16 worker varsa) - neredeyse aynı anda gönderiyorlardı.
+    //
+    // Yeni hesap: Aynı port'un queue'ları arasında delay_cycles/NUM_TX_CORES
+    // offset koyar. Örn: 2 queue varsa → delay_cycles/2 = tam yarım periyot.
+    uint64_t local_phase = params->queue_id * (delay_cycles / NUM_TX_CORES);
+    uint64_t next_send_time = rte_get_tsc_cycles() + stagger_offset + local_phase;
 
     printf("TX Worker started: Port %u, Queue %u, Lcore %u, VLAN %u, VL_RANGE [%u..%u)\n",
            params->port_id, params->queue_id, params->lcore_id, params->vlan_id, vl_start, vl_end);
@@ -1164,8 +1165,10 @@ int tx_worker(void *arg)
 #else
     printf("  *** SMOOTH PACING - 1 saniyeye yayılmış trafik ***\n");
 #endif
-    printf("  -> Pacing: %.1f us/paket (%.0f paket/s), stagger=%ums\n",
-           inter_packet_us, (double)packets_per_sec, (unsigned)(stagger_offset * 1000 / tsc_hz));
+    double local_phase_us = (double)local_phase * 1000000.0 / (double)tsc_hz;
+    printf("  -> Pacing: %.1f us/paket (%.0f paket/s), stagger=%ums, local_phase=%.1fus (Q%u/%u)\n",
+           inter_packet_us, (double)packets_per_sec, (unsigned)(stagger_offset * 1000 / tsc_hz),
+           local_phase_us, params->queue_id, (unsigned)NUM_TX_CORES);
     printf("  VL-ID Based Sequence: Each VL-ID has independent sequence counter\n");
     printf("  Strategy: Round-robin through ALL VL-IDs in range (%u VL-IDs)\n", vl_range_size);
 
@@ -1216,7 +1219,6 @@ int tx_worker(void *arg)
             now = rte_get_tsc_cycles();
         }
 
-#if TOKEN_BUCKET_TX_ENABLED
         // Geride kalırsak PHASE-PRESERVING SKIP (burst önleme)
         // next_send_time = now yerine N * delay_cycles ile ilerle
         // Bu sayede worker'lar arası phase offset korunur
@@ -1224,12 +1226,6 @@ int tx_worker(void *arg)
             uint64_t periods_behind = (now - next_send_time) / delay_cycles;
             next_send_time += periods_behind * delay_cycles;
         }
-#else
-        // Geride kalırsak CATCH-UP YAPMA (burst önleme)
-        if (next_send_time + delay_cycles < now) {
-            next_send_time = now;
-        }
-#endif
         next_send_time += delay_cycles;
 
         // Tek paket tahsisi
