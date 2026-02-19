@@ -15,6 +15,8 @@ int main(int argc, char const *argv[])
     Unit unit;
     unit = g_UnitManager.unitSelector();
 
+    g_ReportManager.setUnitName(g_UnitManager.enumToString(unit));
+
     if (!g_UnitManager.configureDeviceForUnit(unit))
     {
         std::cout << "Cihaz konfigurasyon hatasi!" << std::endl;
