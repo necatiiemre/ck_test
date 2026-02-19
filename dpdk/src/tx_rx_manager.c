@@ -461,7 +461,6 @@ void init_dtn_stats(void)
         rte_atomic64_init(&dtn_stats[i].duplicate_pkts);
         rte_atomic64_init(&dtn_stats[i].short_pkts);
         rte_atomic64_init(&dtn_stats[i].total_rx_pkts);
-        rte_atomic64_init(&dtn_stats[i].internal_rx_bytes);
     }
     printf("DTN port statistics initialized for %d ports\n", DTN_PORT_COUNT);
 }
@@ -1431,7 +1430,6 @@ int rx_worker(void *arg)
     uint64_t local_lost = 0, local_ooo = 0, local_dup = 0, local_short = 0;
     uint64_t local_external = 0;  // External packets (VL-ID outside expected range)
     uint64_t local_raw_rx = 0, local_raw_bytes = 0;  // Raw socket packet counters
-    uint64_t local_internal_bytes = 0;  // DTN-only bytes (raw socket hariç)
     const uint32_t FLUSH = 131072;
 
 #if STATS_MODE_DTN
@@ -1812,9 +1810,6 @@ int rx_worker(void *arg)
                     continue;  // Skip internal PRBS validation
                 }
 
-                // Internal packet (DTN traffic) - track bytes for software-based DTN TX display
-                local_internal_bytes += m->pkt_len;
-
                 // Get sequence number from payload
                 uint64_t seq = *(uint64_t *)(pkt + payload_off);
 
@@ -1986,13 +1981,11 @@ int rx_worker(void *arg)
                     rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
-                    rte_atomic64_add(&dtn_stats[my_dtn_port].internal_rx_bytes, local_internal_bytes);
                 }
 #endif
                 local_rx = local_good = local_bad = local_bits = 0;
                 local_lost = local_ooo = local_dup = local_short = local_external = 0;
                 local_raw_rx = local_raw_bytes = 0;
-                local_internal_bytes = 0;
             }
         }
     }
@@ -2023,7 +2016,6 @@ int rx_worker(void *arg)
             rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
             rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
             rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
-            rte_atomic64_add(&dtn_stats[my_dtn_port].internal_rx_bytes, local_internal_bytes);
         }
 #endif
     }

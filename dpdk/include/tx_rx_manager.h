@@ -84,8 +84,7 @@ struct dtn_port_stats {
     rte_atomic64_t out_of_order_pkts;
     rte_atomic64_t duplicate_pkts;
     rte_atomic64_t short_pkts;
-    rte_atomic64_t total_rx_pkts;     // Server RX = DTN TX paket sayısı (tüm paketler)
-    rte_atomic64_t internal_rx_bytes;  // Sadece DTN paketlerinin byte sayısı (raw socket hariç)
+    rte_atomic64_t total_rx_pkts;     // Server RX = DTN TX paket sayısı
 };
 
 extern struct dtn_port_stats dtn_stats[DTN_PORT_COUNT];
