@@ -19,9 +19,15 @@ public:
 
     void setUnitName(std::string name);
 
+    // Log dosyasinin basina rapor bilgilerini yazar
+    bool writeReportHeader();
+
 private:
     // Turkce karakter icerip icermedigini kontrol eder
     bool containsTurkishCharacter(const std::string &input) const;
+
+    // Unit adina gore log dizin yolunu dondurur
+    std::string getLogPathForUnit() const;
 
     std::string m_testName;
     std::string m_test_name_correction;

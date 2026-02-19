@@ -1,6 +1,10 @@
 #include "ReportManager.h"
+#include "Dtn.h"
 #include <iostream>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <filesystem>
 
 // Global singleton
 ReportManager g_ReportManager;
@@ -122,4 +126,63 @@ void ReportManager::setUnitName(std::string name)
     m_unit_name = name;
     std::cout << "Unit name saved: " << m_unit_name << std::endl;
     std::cout << "========================================" << std::endl;
+}
+
+std::string ReportManager::getLogPathForUnit() const
+{
+    if (m_unit_name == "CMC") return LogPaths::CMC();
+    if (m_unit_name == "VMC") return LogPaths::VMC();
+    if (m_unit_name == "MMC") return LogPaths::MMC();
+    if (m_unit_name == "DTN") return LogPaths::DTN();
+    if (m_unit_name == "HSN") return LogPaths::HSN();
+    return LogPaths::baseDir();
+}
+
+bool ReportManager::writeReportHeader()
+{
+    std::string logDir = getLogPathForUnit();
+    std::string logFile = logDir + "/" + m_testName + ".log";
+
+    // Mevcut icerik varsa oku
+    std::string existingContent;
+    {
+        std::ifstream inFile(logFile);
+        if (inFile.is_open())
+        {
+            std::stringstream ss;
+            ss << inFile.rdbuf();
+            existingContent = ss.str();
+            inFile.close();
+        }
+    }
+
+    // Dosyayi ac ve basina rapor bilgilerini yaz
+    std::ofstream outFile(logFile);
+    if (!outFile.is_open())
+    {
+        std::cerr << "Error: Could not open log file: " << logFile << std::endl;
+        return false;
+    }
+
+    outFile << "========================================" << std::endl;
+    outFile << "         TEST REPORT" << std::endl;
+    outFile << "========================================" << std::endl;
+    outFile << "Test Name       : " << m_testName << std::endl;
+    outFile << "Tester Name     : " << m_tester_name << std::endl;
+    outFile << "Quality Checker : " << m_quality_checker_name << std::endl;
+    outFile << "Unit Name       : " << m_unit_name << std::endl;
+    outFile << "========================================" << std::endl;
+    outFile << std::endl;
+
+    // Mevcut icerigi ekle
+    if (!existingContent.empty())
+    {
+        outFile << existingContent;
+    }
+
+    outFile.close();
+
+    std::cout << "Report header written to: " << logFile << std::endl;
+
+    return true;
 }

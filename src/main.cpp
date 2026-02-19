@@ -23,5 +23,7 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
+    g_ReportManager.writeReportHeader();
+
     return 0;
 }
