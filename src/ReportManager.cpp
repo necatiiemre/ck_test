@@ -59,17 +59,28 @@ bool ReportManager::collectTestInfo()
             continue;
         }
 
-        if (!containsTurkishCharacter(m_testName))
+        if (containsTurkishCharacter(m_testName))
         {
-            std::cout << "Hatali giris! Test adi Turkce karakter icermelidir (ornek: ç, ş, ğ, ü, ö, ı)." << std::endl;
-            std::cout << "Lutfen dogru test adini tekrar giriniz." << std::endl;
+            std::cout << "Hatali giris! Test adi Turkce karakter icermemelidir (ç, ş, ğ, ü, ö, ı)." << std::endl;
+            std::cout << "Lutfen tekrar giriniz." << std::endl;
             continue;
         }
 
-        break;
+        // Turkce karakter yok, teyit icin tekrar sor
+        std::cout << "Test adi: " << m_testName << std::endl;
+        std::cout << "Dogru mu? (e/h): ";
+        std::string confirmation;
+        std::getline(std::cin, confirmation);
+
+        if (confirmation == "e" || confirmation == "E")
+        {
+            break;
+        }
+
+        std::cout << "Test adi onaylanmadi, tekrar giriniz." << std::endl;
     }
 
-    std::cout << "Test adi: " << m_testName << std::endl;
+    std::cout << "Test adi kaydedildi: " << m_testName << std::endl;
     std::cout << "========================================" << std::endl;
 
     return true;
