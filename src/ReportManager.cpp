@@ -46,6 +46,18 @@ bool ReportManager::containsTurkishCharacter(const std::string &input) const
     return false;
 }
 
+bool ReportManager::containsOnlyDigits(const std::string &input) const
+{
+    for (const auto &c : input)
+    {
+        if (!std::isdigit(static_cast<unsigned char>(c)))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool ReportManager::collectTestInfo()
 {
     std::cout << "========================================" << std::endl;
@@ -93,6 +105,46 @@ bool ReportManager::collectTestInfo()
     std::cout << "Test name saved: " << m_testName << std::endl;
     std::cout << "========================================" << std::endl;
 
+    while (true)
+    {
+        std::cout << "Enter serial number: ";
+        std::getline(std::cin, m_serial_number);
+
+        if (m_serial_number.empty())
+        {
+            std::cout << "Serial number can not be empty!" << std::endl;
+            continue;
+        }
+
+        if (!containsOnlyDigits(m_serial_number))
+        {
+            std::cout << "Error! Serial number must contain only digits." << std::endl;
+            std::cout << "Please enter again!" << std::endl;
+            continue;
+        }
+
+        std::cout << "Enter serial number for correction: ";
+        std::getline(std::cin, m_serial_number_correction);
+
+        if (m_serial_number_correction.empty())
+        {
+            std::cout << "Serial number can not be empty!" << std::endl;
+            continue;
+        }
+
+        std::cout << "Serial number: " << m_serial_number << std::endl;
+
+        if (m_serial_number.compare(m_serial_number_correction) == 0)
+        {
+            break;
+        }
+
+        std::cout << "Invalid serial number. Please try again." << std::endl;
+    }
+
+    std::cout << "Serial number saved: " << m_serial_number << std::endl;
+    std::cout << "========================================" << std::endl;
+
     std::cout << "Enter tester name: ";
     std::getline(std::cin, m_tester_name);
     std::cout << "Tester name saved: " << m_tester_name << std::endl;
@@ -119,6 +171,11 @@ std::string ReportManager::getTesterName() const
 std::string ReportManager::getQualityCheckerName() const
 {
     return m_quality_checker_name;
+}
+
+std::string ReportManager::getSerialNumber() const
+{
+    return m_serial_number;
 }
 
 void ReportManager::setUnitName(std::string name)
@@ -168,6 +225,7 @@ bool ReportManager::writeReportHeader()
     outFile << "         TEST REPORT" << std::endl;
     outFile << "========================================" << std::endl;
     outFile << "Test Name       : " << m_testName << std::endl;
+    outFile << "Serial Number   : " << m_serial_number << std::endl;
     outFile << "Tester Name     : " << m_tester_name << std::endl;
     outFile << "Quality Checker : " << m_quality_checker_name << std::endl;
     outFile << "Unit Name       : " << m_unit_name << std::endl;
