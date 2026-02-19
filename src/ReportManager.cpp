@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <ctime>
 
 // Global singleton
 ReportManager g_ReportManager;
@@ -221,9 +222,15 @@ bool ReportManager::writeReportHeader()
         return false;
     }
 
+    // Tarih ve saat bilgisini al
+    std::time_t now = std::time(nullptr);
+    char dateTimeBuf[64];
+    std::strftime(dateTimeBuf, sizeof(dateTimeBuf), "%B %d, %Y %H:%M:%S", std::localtime(&now));
+
     outFile << "========================================" << std::endl;
     outFile << "         TEST REPORT" << std::endl;
     outFile << "========================================" << std::endl;
+    outFile << "Date/Time       : " << dateTimeBuf << std::endl;
     outFile << "Test Name       : " << m_testName << std::endl;
     outFile << "Serial Number   : " << m_serial_number << std::endl;
     outFile << "Tester Name     : " << m_tester_name << std::endl;
