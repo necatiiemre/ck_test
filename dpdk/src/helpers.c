@@ -99,6 +99,20 @@ static void helper_print_dtn_stats(const struct ports_config *ports_config,
         }
     }
 
+    // Port 12 per-target stats: DTN 32 → DTN 0-7, 16-23 eşit dağılım
+    // Her target 4 DTN porta eşit dağıtılır (target bytes / 4)
+    struct raw_socket_port *port12 = &raw_ports[0];
+    uint64_t port12_target_tx_bytes[MAX_RAW_TARGETS] = {0};
+    uint64_t port12_target_tx_pkts[MAX_RAW_TARGETS] = {0};
+    uint16_t port12_target_dest[MAX_RAW_TARGETS] = {0};
+    for (uint16_t t = 0; t < port12->tx_target_count; t++) {
+        pthread_spin_lock(&port12->tx_targets[t].stats.lock);
+        port12_target_tx_bytes[t] = port12->tx_targets[t].stats.tx_bytes;
+        port12_target_tx_pkts[t] = port12->tx_targets[t].stats.tx_packets;
+        pthread_spin_unlock(&port12->tx_targets[t].stats.lock);
+        port12_target_dest[t] = port12->tx_targets[t].config.dest_port;
+    }
+
     // DTN Port 0-31 (DPDK portları)
     for (uint16_t dtn = 0; dtn < DTN_DPDK_PORT_COUNT; dtn++) {
         const struct dtn_port_map_entry *entry = &dtn_port_map[dtn];
@@ -114,6 +128,15 @@ static void helper_print_dtn_stats(const struct ports_config *ports_config,
         uint16_t srv_tx_queue = entry->rx_server_queue;
         uint64_t dtn_rx_pkts = port_hw_stats[srv_tx_port].q_opackets[srv_tx_queue];
         uint64_t dtn_rx_bytes = port_hw_stats[srv_tx_port].q_obytes[srv_tx_queue];
+
+        // Port 12 katkısı: DTN 32 → DTN 0-7, 16-23 (her target 4 DTN porta eşit)
+        for (uint16_t t = 0; t < port12->tx_target_count; t++) {
+            if (port12_target_dest[t] == entry->rx_server_port) {
+                dtn_rx_bytes += port12_target_tx_bytes[t] / 4;
+                dtn_rx_pkts += port12_target_tx_pkts[t] / 4;
+                break;
+            }
+        }
 
         // Gbps delta hesaplama
         uint64_t tx_delta = dtn_tx_bytes - dtn_prev_tx_bytes[dtn];
