@@ -229,6 +229,12 @@ int main(int argc, char const *argv[])
     // Initialize RX verification stats (PRBS good/bad/bit_errors + sequence stats)
     init_rx_stats();
 
+#if STATS_MODE_DTN
+    // Initialize DTN port mapping and statistics
+    init_dtn_port_map();
+    init_dtn_stats();
+#endif
+
     // *** PRBS-31 CACHE INITIALIZATION ***
     printf("\n=== Initializing PRBS-31 Cache ===\n");
     printf("This will take a few minutes as we generate ~%u MB per port...\n",
@@ -584,10 +590,13 @@ int main(int argc, char const *argv[])
 
 #if ENABLE_RAW_SOCKET_PORTS
         // Print raw socket port stats (only if initialized)
+        // DTN modunda raw socket tablosu ayrıca basılmaz, DTN tablosu yeterli
+#if !STATS_MODE_DTN
         if (raw_ports_initialized)
         {
             print_raw_socket_stats();
         }
+#endif
 #endif
 
 #if PTP_ENABLED

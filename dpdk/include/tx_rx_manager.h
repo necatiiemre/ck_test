@@ -69,6 +69,55 @@ struct rx_stats
 
 extern struct rx_stats rx_stats_per_port[MAX_PORTS];
 
+// ==========================================
+// DTN PORT-BASED STATISTICS (STATS_MODE_DTN)
+// ==========================================
+#if STATS_MODE_DTN
+
+// DTN port bazlı PRBS istatistikleri
+// DTN TX (DTN→Server) kalite metrikleri: Server RX tarafında ölçülür
+struct dtn_port_stats {
+    rte_atomic64_t good_pkts;
+    rte_atomic64_t bad_pkts;
+    rte_atomic64_t bit_errors;
+    rte_atomic64_t lost_pkts;
+    rte_atomic64_t out_of_order_pkts;
+    rte_atomic64_t duplicate_pkts;
+    rte_atomic64_t short_pkts;
+    rte_atomic64_t total_rx_pkts;     // Server RX = DTN TX paket sayısı
+};
+
+extern struct dtn_port_stats dtn_stats[DTN_PORT_COUNT];
+
+// DTN port mapping tablosu (runtime'da config'den yüklenir)
+extern struct dtn_port_map_entry dtn_port_map[DTN_PORT_COUNT];
+
+// VLAN → DTN port hızlı lookup tablosu
+extern uint8_t vlan_to_dtn_port[DTN_VLAN_LOOKUP_SIZE];
+
+/**
+ * Initialize DTN port mapping and VLAN lookup table
+ */
+void init_dtn_port_map(void);
+
+/**
+ * Initialize DTN port statistics
+ */
+void init_dtn_stats(void);
+
+/**
+ * Install VLAN-based rte_flow rules for RX queue steering
+ * Her VLAN → ilgili RX queue'ya yönlendirilir (1:1 mapping)
+ */
+int dtn_flow_rules_install(uint16_t port_id);
+
+/**
+ * Remove VLAN-based rte_flow rules
+ */
+void dtn_flow_rules_remove(uint16_t port_id);
+
+#endif /* STATS_MODE_DTN */
+
 /**
  * VL-ID based sequence tracking (lock-free, watermark-based)
  * Uses highest-seen watermark instead of expected sequence

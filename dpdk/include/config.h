@@ -957,4 +957,143 @@ struct ptp_session_config
 #define ATE_HEALTH_MONITOR_ENABLED 0
 #endif
 
+// ==========================================
+// DTN PORT-BASED STATISTICS MODE
+// ==========================================
+// STATS_MODE_DTN=1: DTN port bazlı istatistik tablosu (34 satır, DTN Port 0-33)
+//   - RX queue steering: rte_flow VLAN match (her queue = 1 VLAN = 1 DTN port)
+//   - HW per-queue stats ile sıfır overhead Gbps hesaplama
+//   - PRBS doğrulama DTN port bazlı
+//
+// STATS_MODE_DTN=0: Eski server port bazlı tablo (8 satır, Server Port 0-7)
+//   - RX queue steering: RSS (hash tabanlı)
+//   - HW toplam port stats
+//   - PRBS doğrulama server port bazlı
+
+#ifndef STATS_MODE_DTN
+#define STATS_MODE_DTN 1
+#endif
+
+// DTN port sayısı: 32 DPDK + 2 raw socket (Port 12=DTN32, Port 13=DTN33)
+#define DTN_PORT_COUNT 34
+#define DTN_DPDK_PORT_COUNT 32  // DPDK üzerinden bağlanan DTN portları
+#define DTN_RAW_PORT_12 32      // Port 12 (1G bakır) = DTN Port 32
+#define DTN_RAW_PORT_13 33      // Port 13 (100M bakır) = DTN Port 33
+
+// DTN port başına 1 VLAN
+#define DTN_VLANS_PER_PORT 1
+
+// ==========================================
+// DTN PORT MAPPING TABLE
+// ==========================================
+// Her DTN port: DTN perspektifinden TX/RX
+//   DTN RX = Server gönderir → DTN alır (server_tx_port, rx_vlan)
+//   DTN TX = DTN gönderir → Server alır (server_rx_port, tx_vlan)
+//
+// DTN Port 0-31: DPDK portları (her biri 1 VLAN)
+// DTN Port 32:   Port 12 (1G raw socket, aggregate)
+// DTN Port 33:   Port 13 (100M raw socket, aggregate)
+
+struct dtn_port_map_entry {
+    uint16_t dtn_port_id;       // DTN port numarası (0-33)
+
+    // DTN RX (Server → DTN): Server bu VLAN'dan gönderir
+    uint16_t rx_vlan;           // Server TX VLAN (DTN bu VLAN'ı alır)
+    uint16_t rx_server_port;    // Server DPDK port (TX yapan)
+    uint16_t rx_server_queue;   // Server TX queue index (0-3)
+
+    // DTN TX (DTN → Server): DTN bu VLAN'dan gönderir
+    uint16_t tx_vlan;           // Server RX VLAN (DTN bu VLAN'dan gönderir)
+    uint16_t tx_server_port;    // Server DPDK port (RX yapan)
+    uint16_t tx_server_queue;   // Server RX queue index (0-3)
+};
+
+// DTN Port Mapping Tablosu (Kaynak: PTP session tablosundan türetildi)
+// Format: {dtn_port, rx_vlan, rx_srv_port, rx_srv_queue, tx_vlan, tx_srv_port, tx_srv_queue}
+#define DTN_PORT_MAP_INIT {                                                                         \
+    /* DTN 0-3:   Server TX=Port2(VLAN 97-100),  Server RX=Port5(VLAN 225-228) */                   \
+    {.dtn_port_id = 0,  .rx_vlan = 97,  .rx_server_port = 2, .rx_server_queue = 0,                  \
+                         .tx_vlan = 225, .tx_server_port = 5, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 1,  .rx_vlan = 98,  .rx_server_port = 2, .rx_server_queue = 1,                  \
+                         .tx_vlan = 226, .tx_server_port = 5, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 2,  .rx_vlan = 99,  .rx_server_port = 2, .rx_server_queue = 2,                  \
+                         .tx_vlan = 227, .tx_server_port = 5, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 3,  .rx_vlan = 100, .rx_server_port = 2, .rx_server_queue = 3,                  \
+                         .tx_vlan = 228, .tx_server_port = 5, .tx_server_queue = 3},                 \
+    /* DTN 4-7:   Server TX=Port3(VLAN 101-104), Server RX=Port4(VLAN 229-232) */                   \
+    {.dtn_port_id = 4,  .rx_vlan = 101, .rx_server_port = 3, .rx_server_queue = 0,                  \
+                         .tx_vlan = 229, .tx_server_port = 4, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 5,  .rx_vlan = 102, .rx_server_port = 3, .rx_server_queue = 1,                  \
+                         .tx_vlan = 230, .tx_server_port = 4, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 6,  .rx_vlan = 103, .rx_server_port = 3, .rx_server_queue = 2,                  \
+                         .tx_vlan = 231, .tx_server_port = 4, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 7,  .rx_vlan = 104, .rx_server_port = 3, .rx_server_queue = 3,                  \
+                         .tx_vlan = 232, .tx_server_port = 4, .tx_server_queue = 3},                 \
+    /* DTN 8-11:  Server TX=Port0(VLAN 105-108), Server RX=Port7(VLAN 233-236) */                   \
+    {.dtn_port_id = 8,  .rx_vlan = 105, .rx_server_port = 0, .rx_server_queue = 0,                  \
+                         .tx_vlan = 233, .tx_server_port = 7, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 9,  .rx_vlan = 106, .rx_server_port = 0, .rx_server_queue = 1,                  \
+                         .tx_vlan = 234, .tx_server_port = 7, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 10, .rx_vlan = 107, .rx_server_port = 0, .rx_server_queue = 2,                  \
+                         .tx_vlan = 235, .tx_server_port = 7, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 11, .rx_vlan = 108, .rx_server_port = 0, .rx_server_queue = 3,                  \
+                         .tx_vlan = 236, .tx_server_port = 7, .tx_server_queue = 3},                 \
+    /* DTN 12-15: Server TX=Port1(VLAN 109-112), Server RX=Port6(VLAN 237-240) */                   \
+    {.dtn_port_id = 12, .rx_vlan = 109, .rx_server_port = 1, .rx_server_queue = 0,                  \
+                         .tx_vlan = 237, .tx_server_port = 6, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 13, .rx_vlan = 110, .rx_server_port = 1, .rx_server_queue = 1,                  \
+                         .tx_vlan = 238, .tx_server_port = 6, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 14, .rx_vlan = 111, .rx_server_port = 1, .rx_server_queue = 2,                  \
+                         .tx_vlan = 239, .tx_server_port = 6, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 15, .rx_vlan = 112, .rx_server_port = 1, .rx_server_queue = 3,                  \
+                         .tx_vlan = 240, .tx_server_port = 6, .tx_server_queue = 3},                 \
+    /* DTN 16-19: Server TX=Port4(VLAN 113-116), Server RX=Port3(VLAN 241-244) */                   \
+    {.dtn_port_id = 16, .rx_vlan = 113, .rx_server_port = 4, .rx_server_queue = 0,                  \
+                         .tx_vlan = 241, .tx_server_port = 3, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 17, .rx_vlan = 114, .rx_server_port = 4, .rx_server_queue = 1,                  \
+                         .tx_vlan = 242, .tx_server_port = 3, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 18, .rx_vlan = 115, .rx_server_port = 4, .rx_server_queue = 2,                  \
+                         .tx_vlan = 243, .tx_server_port = 3, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 19, .rx_vlan = 116, .rx_server_port = 4, .rx_server_queue = 3,                  \
+                         .tx_vlan = 244, .tx_server_port = 3, .tx_server_queue = 3},                 \
+    /* DTN 20-23: Server TX=Port5(VLAN 117-120), Server RX=Port2(VLAN 245-248) */                   \
+    {.dtn_port_id = 20, .rx_vlan = 117, .rx_server_port = 5, .rx_server_queue = 0,                  \
+                         .tx_vlan = 245, .tx_server_port = 2, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 21, .rx_vlan = 118, .rx_server_port = 5, .rx_server_queue = 1,                  \
+                         .tx_vlan = 246, .tx_server_port = 2, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 22, .rx_vlan = 119, .rx_server_port = 5, .rx_server_queue = 2,                  \
+                         .tx_vlan = 247, .tx_server_port = 2, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 23, .rx_vlan = 120, .rx_server_port = 5, .rx_server_queue = 3,                  \
+                         .tx_vlan = 248, .tx_server_port = 2, .tx_server_queue = 3},                 \
+    /* DTN 24-27: Server TX=Port6(VLAN 121-124), Server RX=Port1(VLAN 249-252) */                   \
+    {.dtn_port_id = 24, .rx_vlan = 121, .rx_server_port = 6, .rx_server_queue = 0,                  \
+                         .tx_vlan = 249, .tx_server_port = 1, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 25, .rx_vlan = 122, .rx_server_port = 6, .rx_server_queue = 1,                  \
+                         .tx_vlan = 250, .tx_server_port = 1, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 26, .rx_vlan = 123, .rx_server_port = 6, .rx_server_queue = 2,                  \
+                         .tx_vlan = 251, .tx_server_port = 1, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 27, .rx_vlan = 124, .rx_server_port = 6, .rx_server_queue = 3,                  \
+                         .tx_vlan = 252, .tx_server_port = 1, .tx_server_queue = 3},                 \
+    /* DTN 28-31: Server TX=Port7(VLAN 125-128), Server RX=Port0(VLAN 253-256) */                   \
+    {.dtn_port_id = 28, .rx_vlan = 125, .rx_server_port = 7, .rx_server_queue = 0,                  \
+                         .tx_vlan = 253, .tx_server_port = 0, .tx_server_queue = 0},                 \
+    {.dtn_port_id = 29, .rx_vlan = 126, .rx_server_port = 7, .rx_server_queue = 1,                  \
+                         .tx_vlan = 254, .tx_server_port = 0, .tx_server_queue = 1},                 \
+    {.dtn_port_id = 30, .rx_vlan = 127, .rx_server_port = 7, .rx_server_queue = 2,                  \
+                         .tx_vlan = 255, .tx_server_port = 0, .tx_server_queue = 2},                 \
+    {.dtn_port_id = 31, .rx_vlan = 128, .rx_server_port = 7, .rx_server_queue = 3,                  \
+                         .tx_vlan = 256, .tx_server_port = 0, .tx_server_queue = 3},                 \
+    /* DTN 32: Port 12 (1G raw socket) - aggregate */                                               \
+    {.dtn_port_id = 32, .rx_vlan = 0, .rx_server_port = 12, .rx_server_queue = 0,                   \
+                         .tx_vlan = 0, .tx_server_port = 12, .tx_server_queue = 0},                  \
+    /* DTN 33: Port 13 (100M raw socket) - aggregate */                                             \
+    {.dtn_port_id = 33, .rx_vlan = 0, .rx_server_port = 13, .rx_server_queue = 0,                   \
+                         .tx_vlan = 0, .tx_server_port = 13, .tx_server_queue = 0},                  \
+}
+
+// VLAN → DTN port lookup (hızlı erişim)
+// Index = VLAN ID, Value = DTN port numarası (0xFF = tanımsız)
+#define DTN_VLAN_LOOKUP_SIZE 257  // VLAN 0-256
+#define DTN_VLAN_INVALID 0xFF
+
 #endif /* CONFIG_H */
