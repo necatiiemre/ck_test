@@ -50,37 +50,53 @@ bool ReportManager::collectTestInfo()
 
     while (true)
     {
-        std::cout << "Test adini giriniz: ";
+        std::cout << "Enter test name: ";
         std::getline(std::cin, m_testName);
 
         if (m_testName.empty())
         {
-            std::cout << "Test adi bos olamaz! Tekrar giriniz." << std::endl;
+            std::cout << "Test name can not be empty!" << std::endl;
             continue;
         }
 
         if (containsTurkishCharacter(m_testName))
         {
-            std::cout << "Hatali giris! Test adi Turkce karakter icermemelidir (ç, ş, ğ, ü, ö, ı)." << std::endl;
-            std::cout << "Lutfen tekrar giriniz." << std::endl;
+            std::cout << "Error! Test name must not include Turkish letters.(ç, ş, ğ, ü, ö, ı)." << std::endl;
+            std::cout << "Please enter again!" << std::endl;
+            continue;
+        }
+
+        std::cout << "Enter test name for correction: ";
+        std::getline(std::cin, m_test_name_correction);
+
+        if (m_test_name_correction.empty())
+        {
+            std::cout << "Test name can not be empty!" << std::endl;
             continue;
         }
 
         // Turkce karakter yok, teyit icin tekrar sor
-        std::cout << "Test adi: " << m_testName << std::endl;
-        std::cout << "Dogru mu? (e/h): ";
-        std::string confirmation;
-        std::getline(std::cin, confirmation);
+        std::cout << "Test name: " << m_testName << std::endl;
 
-        if (confirmation == "e" || confirmation == "E")
+        if (m_testName.compare(m_test_name_correction) == 0)
         {
             break;
         }
 
-        std::cout << "Test adi onaylanmadi, tekrar giriniz." << std::endl;
+        std::cout << "Invalid test name. Plase try again." << std::endl;
     }
 
-    std::cout << "Test adi kaydedildi: " << m_testName << std::endl;
+    std::cout << "Test name saved: " << m_testName << std::endl;
+    std::cout << "========================================" << std::endl;
+
+    std::cout << "Enter tester name: ";
+    std::getline(std::cin, m_tester_name);
+    std::cout << "Tester name saved: " << m_tester_name << std::endl;
+    std::cout << "========================================" << std::endl;
+
+    std::cout << "Enter quality checker name: ";
+    std::getline(std::cin, m_quality_checker_name);
+    std::cout << "Quality checker name saved: " << m_quality_checker_name << std::endl;
     std::cout << "========================================" << std::endl;
 
     return true;
@@ -89,4 +105,21 @@ bool ReportManager::collectTestInfo()
 std::string ReportManager::getTestName() const
 {
     return m_testName;
+}
+
+std::string ReportManager::getTesterName() const
+{
+    return m_tester_name;
+}
+
+std::string ReportManager::getQualityCheckerName() const
+{
+    return m_quality_checker_name;
+}
+
+void ReportManager::setUnitName(std::string name)
+{
+    m_unit_name = name;
+    std::cout << "Unit name saved: " << m_unit_name << std::endl;
+    std::cout << "========================================" << std::endl;
 }
