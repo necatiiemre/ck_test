@@ -30,6 +30,7 @@ set(SOURCES
     src/SSHDeployer.cpp
     src/CumulusHelper.cpp
     src/SerialTimeForwarder.cpp
+    src/ReportManager.cpp
 )
 
 # Executable olustur
