@@ -1960,14 +1960,6 @@ int rx_worker(void *arg)
                 rte_pktmbuf_free(pkts[i]);
             }
 
-            // Flush internal_rx_bytes every burst for smooth Gbps display
-#if STATS_MODE_DTN
-            if (local_internal_bytes > 0 && my_dtn_port != DTN_VLAN_INVALID) {
-                rte_atomic64_add(&dtn_stats[my_dtn_port].internal_rx_bytes, local_internal_bytes);
-                local_internal_bytes = 0;
-            }
-#endif
-
             if (unlikely(local_rx >= FLUSH))
             {
                 rte_atomic64_add(&rx_stats_per_port[params->port_id].total_rx_pkts, local_rx);
@@ -1994,11 +1986,13 @@ int rx_worker(void *arg)
                     rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
+                    rte_atomic64_add(&dtn_stats[my_dtn_port].internal_rx_bytes, local_internal_bytes);
                 }
 #endif
                 local_rx = local_good = local_bad = local_bits = 0;
                 local_lost = local_ooo = local_dup = local_short = local_external = 0;
                 local_raw_rx = local_raw_bytes = 0;
+                local_internal_bytes = 0;
             }
         }
     }
@@ -2029,6 +2023,7 @@ int rx_worker(void *arg)
             rte_atomic64_add(&dtn_stats[my_dtn_port].out_of_order_pkts, local_ooo);
             rte_atomic64_add(&dtn_stats[my_dtn_port].duplicate_pkts, local_dup);
             rte_atomic64_add(&dtn_stats[my_dtn_port].short_pkts, local_short);
+            rte_atomic64_add(&dtn_stats[my_dtn_port].internal_rx_bytes, local_internal_bytes);
         }
 #endif
     }
