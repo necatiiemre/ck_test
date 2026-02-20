@@ -1,1 +1,6 @@
 build/
+dpdk_app
+dpdk_app-debug
+dpdk_app-static
+*.o
+*.log

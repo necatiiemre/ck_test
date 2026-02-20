@@ -256,7 +256,7 @@ bool ReportManager::writeReportHeader()
 
 std::string ReportManager::getPythonScriptPath() const
 {
-    return std::string(PROJECT_ROOT) + "/pdfReportGenerator/dtn_report_pdf_generator.py";
+    return std::string(PROJECT_ROOT) + "/PdfReportGenerator/ReportGenerator.py";
 }
 
 bool ReportManager::createPdfReport()
@@ -282,7 +282,7 @@ bool ReportManager::createPdfReport()
 
     // 4. Get Python script and logo paths
     std::string scriptPath = getPythonScriptPath();
-    std::string logoPath = std::string(PROJECT_ROOT) + "/pdfReportGenerator/assets/company_logo.png";
+    std::string logoPath = std::string(PROJECT_ROOT) + "/PdfReportGenerator/Assets/company_logo.png";
 
     if (!std::filesystem::exists(scriptPath))
     {

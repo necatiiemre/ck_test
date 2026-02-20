@@ -18,7 +18,7 @@
 #endif
 
 namespace LogPaths {
-    inline std::string baseDir()  { return std::string(PROJECT_ROOT) + "/LOGS"; }
+    inline std::string baseDir()  { return std::string(PROJECT_ROOT) + "/MainSoftware/LOGS"; }
     inline std::string CMC()      { return baseDir() + "/CMC"; }
     inline std::string VMC()      { return baseDir() + "/VMC"; }
     inline std::string MMC()      { return baseDir() + "/MMC"; }

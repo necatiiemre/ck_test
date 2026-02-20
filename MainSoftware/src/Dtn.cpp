@@ -304,7 +304,7 @@ bool Dtn::configureSequence()
 
     // sleep(1);
     utils::waitForCtrlC();
-    if (g_cumulus.deployNetworkInterfaces("/home/user/DTN/today/interfaces"))
+    if (g_cumulus.deployNetworkInterfaces(std::string(PROJECT_ROOT) + "/CumulusInterfaces/DTNIRSW/interfaces"))
     {
         std::cout << "Network configuration deployed successfully!" << std::endl;
     }

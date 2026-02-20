@@ -41,7 +41,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-# Proje kok dizinini compile-time'da tanimla (LOGS vs. icin)
+# Proje kok dizinini compile-time'da tanimla
+# PROJECT_ROOT = TestSoftware kok dizini (CMakeLists.txt'nin bir ust dizini)
 target_compile_definitions(${PROJECT_NAME} PRIVATE
-    PROJECT_ROOT="${CMAKE_SOURCE_DIR}"
+    PROJECT_ROOT="${CMAKE_SOURCE_DIR}/.."
 )

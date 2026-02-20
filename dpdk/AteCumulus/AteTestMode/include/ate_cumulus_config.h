@@ -33,8 +33,12 @@ extern "C" {
 // ==========================================
 // ATE INTERFACES FILE PATH
 // ==========================================
-// Sunucuda DPDK deploy dizininde bulunur
-#define ATE_INTERFACES_LOCAL_PATH   "/home/user/Desktop/dpdk/ate_cumulus/interfaces"
+// ATE_ROOT is defined at build time via Makefile (-DATE_ROOT=...)
+// It points to the AteTestMode directory, so interfaces is at ATE_ROOT/interfaces
+#ifndef ATE_ROOT
+    #define ATE_ROOT "."
+#endif
+#define ATE_INTERFACES_LOCAL_PATH   ATE_ROOT "/interfaces"
 #define ATE_INTERFACES_REMOTE_PATH  "/etc/network/interfaces"
 
 // ==========================================
