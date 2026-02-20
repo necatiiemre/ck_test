@@ -201,7 +201,7 @@ std::string ReportManager::getLogPathForUnit() const
 bool ReportManager::writeReportHeader()
 {
     std::string logDir = getLogPathForUnit();
-    std::string logFile = logDir + "/" + m_testName + ".log";
+    std::string logFile = logDir + "/" + "dpdk_app.log";
 
     // Mevcut icerik varsa oku
     std::string existingContent;
@@ -263,7 +263,7 @@ bool ReportManager::createPdfReport()
 {
     // 1. Build log file path
     std::string logDir = getLogPathForUnit();
-    std::string logFile = logDir + "/" + m_testName + ".log";
+    std::string logFile = logDir + "/" + "dpdk_app.log";
 
     // 2. Check if log file exists
     if (!std::filesystem::exists(logFile))
