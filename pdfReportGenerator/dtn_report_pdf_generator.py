@@ -714,7 +714,9 @@ def worker_generate_pdf(args):
         out_file = f"{base_output[:-4]}_part{idx+1}.pdf"
     else:
         out_file = f"{base_output}_part{idx+1}.pdf"
-        
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+
     print(f"   -> [Worker {idx+1}/{total_chunks}] Started: processing {len(phases_chunk)} valid tests... (3-Page Layout)")
     
     pdf_gen = PDFReportTemplate(logo_path=logo_path)

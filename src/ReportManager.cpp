@@ -272,8 +272,13 @@ bool ReportManager::createPdfReport()
         return false;
     }
 
-    // 3. Determine output PDF path
+    // 3. Determine output PDF path and ensure parent directory exists
     std::string pdfFile = logDir + "/" + m_testName + ".pdf";
+    std::filesystem::path pdfParent = std::filesystem::path(pdfFile).parent_path();
+    if (!std::filesystem::exists(pdfParent))
+    {
+        std::filesystem::create_directories(pdfParent);
+    }
 
     // 4. Get Python script and logo paths
     std::string scriptPath = getPythonScriptPath();
