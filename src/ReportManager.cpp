@@ -193,8 +193,8 @@ std::string ReportManager::getLogPathForUnit() const
     if (m_unit_name == "CMC") return LogPaths::CMC();
     if (m_unit_name == "VMC") return LogPaths::VMC();
     if (m_unit_name == "MMC") return LogPaths::MMC();
-    if (m_unit_name == "DTN") return LogPaths::DTN();
-    if (m_unit_name == "HSN") return LogPaths::HSN();
+    if (m_unit_name == "DTN IRSW") return LogPaths::DTN();
+    if (m_unit_name == "HSN IRSW") return LogPaths::HSN();
     return LogPaths::baseDir();
 }
 

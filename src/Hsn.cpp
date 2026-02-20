@@ -18,37 +18,37 @@ bool Hsn::configureSequence()
 {
 
     g_Server.onWithWait(3);
-    // Create and connect both PSUs for HSN
+    // Create and connect both PSUs for HSN IRSW
 
     // Create PSU G30 (30V, 56A)
     if (!g_DeviceManager.create(PSUG30))
     {
-        std::cout << "HSN: Failed to create PSU G30!" << std::endl;
+        std::cout << "HSN IRSW: Failed to create PSU G30!" << std::endl;
         return false;
     }
 
     // Connect to PSU G30
     if (!g_DeviceManager.connect(PSUG30))
     {
-        std::cout << "HSN: Failed to connect to PSU G30!" << std::endl;
+        std::cout << "HSN IRSW: Failed to connect to PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.setCurrent(PSUG30, 1.5))
     {
-        std::cout << "HSN: Failed to set current on PSU G30!" << std::endl;
+        std::cout << "HSN IRSW: Failed to set current on PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.setVoltage(PSUG30, 20.0))
     {
-        std::cout << "HSN: Failed to set voltage on PSU G30!" << std::endl;
+        std::cout << "HSN IRSW: Failed to set voltage on PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.enableOutput(PSUG30, true))
     {
-        std::cout << "HSN: Failed to enable output on PSU G30!" << std::endl;
+        std::cout << "HSN IRSW: Failed to enable output on PSU G30!" << std::endl;
         return false;
     }
 
@@ -73,18 +73,18 @@ bool Hsn::configureSequence()
 
     if (!g_DeviceManager.enableOutput(PSUG30, false))
     {
-        std::cout << "HSN: Failed to disable output on PSU G30!" << std::endl;
+        std::cout << "HSN IRSW: Failed to disable output on PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.disconnect(PSUG30))
     {
-        std::cout << "HSN: Failed to disconnect PSU G30!" << std::endl;
+        std::cout << "HSN IRSW: Failed to disconnect PSU G30!" << std::endl;
         return false;
     }
 
     g_Server.offWithWait(300);
 
-    std::cout << "HSN: PSU configured successfully." << std::endl;
+    std::cout << "HSN IRSW: PSU configured successfully." << std::endl;
     return true;
 }

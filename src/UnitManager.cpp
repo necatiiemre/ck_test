@@ -70,8 +70,8 @@ Unit UnitManager::unitSelector()
         std::cout << "1) CMC\n";
         std::cout << "2) MMC\n";
         std::cout << "3) VMC\n";
-        std::cout << "4) DTN\n";
-        std::cout << "5) HSN\n";
+        std::cout << "4) DTN IRSW\n";
+        std::cout << "5) HSN IRSW\n";
         std::cout << "Enter choice: ";
         std::cin >> choice;
 
@@ -154,9 +154,9 @@ std::string UnitManager::enumToString(Unit unit)
     case Unit::VMC:
         return "VMC";
     case Unit::DTN:
-        return "DTN";
+        return "DTN IRSW";
     case Unit::HSN:
-        return "HSN";
+        return "HSN IRSW";
     }
     return "UNKNOWN";
 }

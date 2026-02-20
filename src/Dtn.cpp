@@ -101,12 +101,12 @@ bool Dtn::ensureLogDirectories()
         std::filesystem::create_directories(LogPaths::MMC());
         std::filesystem::create_directories(LogPaths::DTN());
         std::filesystem::create_directories(LogPaths::HSN());
-        std::cout << "DTN: Log directories created/verified at " << LogPaths::baseDir() << std::endl;
+        std::cout << "DTN IRSW: Log directories created/verified at " << LogPaths::baseDir() << std::endl;
         return true;
     }
     catch (const std::exception &e)
     {
-        std::cerr << "DTN: Failed to create log directories: " << e.what() << std::endl;
+        std::cerr << "DTN IRSW: Failed to create log directories: " << e.what() << std::endl;
         return false;
     }
 }
@@ -114,22 +114,22 @@ bool Dtn::ensureLogDirectories()
 bool Dtn::runLatencyTest(const std::string &run_args, int timeout_seconds)
 {
     std::cout << "======================================" << std::endl;
-    std::cout << "DTN: HW Timestamp Latency Test" << std::endl;
+    std::cout << "DTN IRSW: HW Timestamp Latency Test" << std::endl;
     std::cout << "======================================" << std::endl;
 
     // Ensure log directories exist
     if (!ensureLogDirectories())
     {
-        std::cerr << "DTN: Failed to create log directories!" << std::endl;
+        std::cerr << "DTN IRSW: Failed to create log directories!" << std::endl;
         return false;
     }
 
     // Build local log path
     std::string local_log_path = LogPaths::DTN() + "/latency_test.log";
 
-    std::cout << "DTN: Run arguments: " << (run_args.empty() ? "(default)" : run_args) << std::endl;
-    std::cout << "DTN: Timeout: " << timeout_seconds << " seconds" << std::endl;
-    std::cout << "DTN: Log output: " << local_log_path << std::endl;
+    std::cout << "DTN IRSW: Run arguments: " << (run_args.empty() ? "(default)" : run_args) << std::endl;
+    std::cout << "DTN IRSW: Timeout: " << timeout_seconds << " seconds" << std::endl;
+    std::cout << "DTN IRSW: Log output: " << local_log_path << std::endl;
 
     // Run the test using SSHDeployer
     bool result = g_ssh_deployer_server.deployBuildRunAndFetchLog(
@@ -143,13 +143,13 @@ bool Dtn::runLatencyTest(const std::string &run_args, int timeout_seconds)
     if (result)
     {
         std::cout << "======================================" << std::endl;
-        std::cout << "DTN: Latency Test COMPLETED" << std::endl;
-        std::cout << "DTN: Log saved to: " << local_log_path << std::endl;
+        std::cout << "DTN IRSW: Latency Test COMPLETED" << std::endl;
+        std::cout << "DTN IRSW: Log saved to: " << local_log_path << std::endl;
         std::cout << "======================================" << std::endl;
     }
     else
     {
-        std::cerr << "DTN: Latency Test FAILED!" << std::endl;
+        std::cerr << "DTN IRSW: Latency Test FAILED!" << std::endl;
     }
 
     return result;
@@ -158,18 +158,18 @@ bool Dtn::runLatencyTest(const std::string &run_args, int timeout_seconds)
 bool Dtn::runDpdkInteractive(const std::string &eal_args, const std::string &make_args)
 {
     std::cout << "======================================" << std::endl;
-    std::cout << "DTN: DPDK Interactive Deployment" << std::endl;
+    std::cout << "DTN IRSW: DPDK Interactive Deployment" << std::endl;
     std::cout << "======================================" << std::endl;
 
     // Step 1: Test connection
     if (!g_ssh_deployer_server.testConnection())
     {
-        std::cerr << "DTN: Cannot connect to server!" << std::endl;
+        std::cerr << "DTN IRSW: Cannot connect to server!" << std::endl;
         return false;
     }
 
     // Step 2: Deploy and build DPDK (without running)
-    std::cout << "DTN: Deploying and building DPDK..." << std::endl;
+    std::cout << "DTN IRSW: Deploying and building DPDK..." << std::endl;
     if (!g_ssh_deployer_server.deployAndBuild(
             "dpdk",            // source folder
             "",                // app name (auto-detect)
@@ -181,7 +181,7 @@ bool Dtn::runDpdkInteractive(const std::string &eal_args, const std::string &mak
             false              // not background
             ))
     {
-        std::cerr << "DTN: DPDK build failed!" << std::endl;
+        std::cerr << "DTN IRSW: DPDK build failed!" << std::endl;
         return false;
     }
 
@@ -190,9 +190,9 @@ bool Dtn::runDpdkInteractive(const std::string &eal_args, const std::string &mak
     // After tests complete, DPDK will fork to background automatically
     std::cout << std::endl;
     std::cout << "======================================" << std::endl;
-    std::cout << "DTN: Starting DPDK Interactive Mode" << std::endl;
-    std::cout << "DTN: You can answer latency test prompts (y/n)" << std::endl;
-    std::cout << "DTN: After tests, DPDK will continue in background" << std::endl;
+    std::cout << "DTN IRSW: Starting DPDK Interactive Mode" << std::endl;
+    std::cout << "DTN IRSW: You can answer latency test prompts (y/n)" << std::endl;
+    std::cout << "DTN IRSW: After tests, DPDK will continue in background" << std::endl;
     std::cout << "======================================" << std::endl;
     std::cout << std::endl;
 
@@ -215,14 +215,14 @@ bool Dtn::runDpdkInteractive(const std::string &eal_args, const std::string &mak
     {
         std::cout << std::endl;
         std::cout << "======================================" << std::endl;
-        std::cout << "DTN: DPDK started successfully!" << std::endl;
-        std::cout << "DTN: Running in background on server" << std::endl;
-        std::cout << "DTN: Log file: /tmp/dpdk_app.log" << std::endl;
+        std::cout << "DTN IRSW: DPDK started successfully!" << std::endl;
+        std::cout << "DTN IRSW: Running in background on server" << std::endl;
+        std::cout << "DTN IRSW: Log file: /tmp/dpdk_app.log" << std::endl;
         std::cout << "======================================" << std::endl;
     }
     else
     {
-        std::cerr << "DTN: DPDK interactive execution failed!" << std::endl;
+        std::cerr << "DTN IRSW: DPDK interactive execution failed!" << std::endl;
     }
 
     return result;
@@ -230,39 +230,39 @@ bool Dtn::runDpdkInteractive(const std::string &eal_args, const std::string &mak
 
 bool Dtn::configureSequence()
 {
-    // Create and connect PSU for DTN
+    // Create and connect PSU for DTN IRSW
 
     // g_Server.onWithWait(3);
 
     // // Create PSU G30 (30V, 56A)
     // if (!g_DeviceManager.create(PSUG30))
     // {
-    //     std::cout << "DTN: Failed to create PSU G30!" << std::endl;
+    //     std::cout << "DTN IRSW: Failed to create PSU G30!" << std::endl;
     //     return false;
     // }
 
     // // Connect to PSU G30
     // if (!g_DeviceManager.connect(PSUG30))
     // {
-    //     std::cout << "DTN: Failed to connect to PSU G30!" << std::endl;
+    //     std::cout << "DTN IRSW: Failed to connect to PSU G30!" << std::endl;
     //     return false;
     // }
 
     // if (!g_DeviceManager.setCurrent(PSUG30, 3.0))
     // {
-    //     std::cout << "DTN: Failed to set current on PSU G30!" << std::endl;
+    //     std::cout << "DTN IRSW: Failed to set current on PSU G30!" << std::endl;
     //     return false;
     // }
 
     // if (!g_DeviceManager.setVoltage(PSUG30, 28.0))
     // {
-    //     std::cout << "DTN: Failed to set voltage on PSU G30!" << std::endl;
+    //     std::cout << "DTN IRSW: Failed to set voltage on PSU G30!" << std::endl;
     //     return false;
     // }
 
     // if (!g_DeviceManager.enableOutput(PSUG30, true))
     // {
-    //     std::cout << "DTN: Failed to enable output on PSU G30!" << std::endl;
+    //     std::cout << "DTN IRSW: Failed to enable output on PSU G30!" << std::endl;
     //     return false;
     // }
 
@@ -273,32 +273,32 @@ bool Dtn::configureSequence()
     // Create PSU G30 (30V, 56A)
     if (!g_DeviceManager.create(PSUG30))
     {
-        std::cout << "DTN: Failed to create PSU G30!" << std::endl;
+        std::cout << "DTN IRSW: Failed to create PSU G30!" << std::endl;
         return false;
     }
 
     // Connect to PSU G30
     if (!g_DeviceManager.connect(PSUG30))
     {
-        std::cout << "DTN: Failed to connect to PSU G30!" << std::endl;
+        std::cout << "DTN IRSW: Failed to connect to PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.setCurrent(PSUG30, 3.0))
     {
-        std::cout << "DTN: Failed to set current on PSU G30!" << std::endl;
+        std::cout << "DTN IRSW: Failed to set current on PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.setVoltage(PSUG30, 28.0))
     {
-        std::cout << "DTN: Failed to set voltage on PSU G30!" << std::endl;
+        std::cout << "DTN IRSW: Failed to set voltage on PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.enableOutput(PSUG30, true))
     {
-        std::cout << "DTN: Failed to enable output on PSU G30!" << std::endl;
+        std::cout << "DTN IRSW: Failed to enable output on PSU G30!" << std::endl;
         return false;
     }
 
@@ -319,7 +319,7 @@ bool Dtn::configureSequence()
     // Configure Cumulus switch VLANs
     if (!g_cumulus.configureSequence())
     {
-        std::cout << "DTN: Cumulus configuration failed!" << std::endl;
+        std::cout << "DTN IRSW: Cumulus configuration failed!" << std::endl;
         return false;
     }
 
@@ -328,7 +328,7 @@ bool Dtn::configureSequence()
     // // SSH Deployment to Server
     // if (!g_ssh_deployer_server.testConnection())
     // {
-    //     std::cout << "DTN: Cannot connect to server!" << std::endl;
+    //     std::cout << "DTN IRSW: Cannot connect to server!" << std::endl;
     //     return false;
     // }
 
@@ -339,7 +339,7 @@ bool Dtn::configureSequence()
     // Just pass folder name - path is auto-resolved from source root
     if (!g_ssh_deployer_server.deployAndBuild("remote_config_sender", "", true, true))
     {
-        std::cout << "DTN: Deployment unsuccessful!" << std::endl;
+        std::cout << "DTN IRSW: Deployment unsuccessful!" << std::endl;
         return false;
     }
     utils::waitForCtrlC();
@@ -349,11 +349,11 @@ bool Dtn::configureSequence()
     serial::SerialTimeForwarder timeForwarder("/dev/ttyUSB0", "/dev/ttyUSB1");
     if (timeForwarder.start())
     {
-        std::cout << "DTN: SerialTimeForwarder started successfully." << std::endl;
+        std::cout << "DTN IRSW: SerialTimeForwarder started successfully." << std::endl;
     }
     else
     {
-        std::cerr << "DTN: Failed to start SerialTimeForwarder: "
+        std::cerr << "DTN IRSW: Failed to start SerialTimeForwarder: "
                   << timeForwarder.getLastError() << std::endl;
     }
 
@@ -363,19 +363,19 @@ bool Dtn::configureSequence()
     // 3. After latency tests, DPDK forks to background automatically
     if (!runDpdkInteractive("-l 0-255 -n 16"))
     {
-        std::cout << "DTN: DPDK deployment unsuccessful!" << std::endl;
+        std::cout << "DTN IRSW: DPDK deployment unsuccessful!" << std::endl;
         return false;
     }
 
     // DPDK is now running in background on server
     // Main software can continue with other tasks
-    std::cout << "DTN: DPDK is running in background, continuing..." << std::endl;
+    std::cout << "DTN IRSW: DPDK is running in background, continuing..." << std::endl;
 
     // Monitor DPDK stats every 10 seconds until Ctrl+C
     std::cout << std::endl;
     std::cout << "======================================" << std::endl;
-    std::cout << "DTN: Monitoring DPDK (every 10 seconds)" << std::endl;
-    std::cout << "DTN: Press Ctrl+C to stop" << std::endl;
+    std::cout << "DTN IRSW: Monitoring DPDK (every 10 seconds)" << std::endl;
+    std::cout << "DTN IRSW: Press Ctrl+C to stop" << std::endl;
     std::cout << "======================================" << std::endl;
 
     // Setup signal handler for Ctrl+C
@@ -419,42 +419,42 @@ bool Dtn::configureSequence()
         }
     }
 
-    // std::cout << "\nDTN: Monitoring stopped (Ctrl+C received)." << std::endl;
+    // std::cout << "\nDTN IRSW: Monitoring stopped (Ctrl+C received)." << std::endl;
 
     // Stop SerialTimeForwarder and show stats
     if (timeForwarder.isRunning())
     {
-        std::cout << "DTN: SerialTimeForwarder stats:" << std::endl;
+        std::cout << "DTN IRSW: SerialTimeForwarder stats:" << std::endl;
         std::cout << "  Packets sent: " << timeForwarder.getPacketsSent() << std::endl;
         std::cout << "  Last timestamp: " << timeForwarder.getLastTimestamp() << std::endl;
         std::cout << "  Last time string: " << timeForwarder.getLastTimeString() << std::endl;
         timeForwarder.stop();
-        std::cout << "DTN: SerialTimeForwarder stopped." << std::endl;
+        std::cout << "DTN IRSW: SerialTimeForwarder stopped." << std::endl;
     }
 
     // Stop DPDK on server
-    std::cout << "DTN: Stopping DPDK on server..." << std::endl;
+    std::cout << "DTN IRSW: Stopping DPDK on server..." << std::endl;
     if (g_ssh_deployer_server.isApplicationRunning("dpdk_app"))
     {
         g_ssh_deployer_server.stopApplication("dpdk_app", true);
-        std::cout << "DTN: DPDK stopped." << std::endl;
+        std::cout << "DTN IRSW: DPDK stopped." << std::endl;
     }
     else
     {
-        std::cout << "DTN: DPDK was not running." << std::endl;
+        std::cout << "DTN IRSW: DPDK was not running." << std::endl;
     }
 
     // Fetch DPDK log from server to local PC
-    std::cout << "DTN: Fetching DPDK log from server..." << std::endl;
+    std::cout << "DTN IRSW: Fetching DPDK log from server..." << std::endl;
     ensureLogDirectories();
     std::string local_dpdk_log = LogPaths::DTN() + "/dpdk_app.log";
     if (g_ssh_deployer_server.fetchFile("/tmp/dpdk_app.log", local_dpdk_log))
     {
-        std::cout << "DTN: DPDK log saved to: " << local_dpdk_log << std::endl;
+        std::cout << "DTN IRSW: DPDK log saved to: " << local_dpdk_log << std::endl;
     }
     else
     {
-        std::cerr << "DTN: Failed to fetch DPDK log (file may not exist)" << std::endl;
+        std::cerr << "DTN IRSW: Failed to fetch DPDK log (file may not exist)" << std::endl;
     }
     //  // Monitor PSU measurements
     //  for (int i = 0; i < 1000; i++)
@@ -476,18 +476,18 @@ bool Dtn::configureSequence()
 
     if (!g_DeviceManager.enableOutput(PSUG30, false))
     {
-        std::cout << "DTN: Failed to disable output on PSU G30!" << std::endl;
+        std::cout << "DTN IRSW: Failed to disable output on PSU G30!" << std::endl;
         return false;
     }
 
     if (!g_DeviceManager.disconnect(PSUG30))
     {
-        std::cout << "DTN: Failed to disconnect PSU G30!" << std::endl;
+        std::cout << "DTN IRSW: Failed to disconnect PSU G30!" << std::endl;
         return false;
     }
 
     // g_Server.offWithWait(300);
 
-    std::cout << "DTN: PSU configured successfully." << std::endl;
+    std::cout << "DTN IRSW: PSU configured successfully." << std::endl;
     return true;
 }
