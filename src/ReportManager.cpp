@@ -6,6 +6,8 @@
 #include <sstream>
 #include <filesystem>
 #include <ctime>
+#include <cstdlib>
+#include <array>
 
 // Global singleton
 ReportManager g_ReportManager;
@@ -199,7 +201,7 @@ std::string ReportManager::getLogPathForUnit() const
 bool ReportManager::writeReportHeader()
 {
     std::string logDir = getLogPathForUnit();
-    std::string logFile = logDir + "/" + m_testName + ".log";
+    std::string logFile = logDir + "/" + "dpdk_app.log";
 
     // Mevcut icerik varsa oku
     std::string existingContent;
@@ -249,5 +251,77 @@ bool ReportManager::writeReportHeader()
 
     std::cout << "Report header written to: " << logFile << std::endl;
 
+    return true;
+}
+
+std::string ReportManager::getPythonScriptPath() const
+{
+    return std::string(PROJECT_ROOT) + "/pdfReportGenerator/dtn_report_pdf_generator.py";
+}
+
+bool ReportManager::createPdfReport()
+{
+    // 1. Build log file path
+    std::string logDir = getLogPathForUnit();
+    std::string logFile = logDir + "/" + "dpdk_app.log";
+
+    // 2. Check if log file exists
+    if (!std::filesystem::exists(logFile))
+    {
+        std::cerr << "Error: Log file not found: " << logFile << std::endl;
+        return false;
+    }
+
+    // 3. Determine output PDF path and ensure parent directory exists
+    std::string pdfFile = logDir + "/" + m_testName + ".pdf";
+    std::filesystem::path pdfParent = std::filesystem::path(pdfFile).parent_path();
+    if (!std::filesystem::exists(pdfParent))
+    {
+        std::filesystem::create_directories(pdfParent);
+    }
+
+    // 4. Get Python script and logo paths
+    std::string scriptPath = getPythonScriptPath();
+    std::string logoPath = std::string(PROJECT_ROOT) + "/pdfReportGenerator/assets/company_logo.png";
+
+    if (!std::filesystem::exists(scriptPath))
+    {
+        std::cerr << "Error: PDF generator script not found: " << scriptPath << std::endl;
+        return false;
+    }
+
+    // 5. Build and execute command
+    std::string cmd = "python3 \"" + scriptPath + "\""
+                    + " -i \"" + logFile + "\""
+                    + " -o \"" + pdfFile + "\""
+                    + " --logo \"" + logoPath + "\""
+                    + " 2>&1";
+
+    std::cout << "========================================" << std::endl;
+    std::cout << "  PDF Report Generation" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "Input:  " << logFile << std::endl;
+    std::cout << "Output: " << pdfFile << std::endl;
+
+    int ret = std::system(cmd.c_str());
+
+    if (ret != 0)
+    {
+        std::cerr << "Error: PDF generation failed! (exit code: " << ret << ")" << std::endl;
+        std::cerr << "Possible causes:" << std::endl;
+        std::cerr << "  - Log file has no valid test phases with Health data" << std::endl;
+        std::cerr << "  - python3 or reportlab is not installed" << std::endl;
+        return false;
+    }
+
+    // 6. Verify PDF was created
+    if (!std::filesystem::exists(pdfFile))
+    {
+        std::cerr << "Error: PDF file was not created: " << pdfFile << std::endl;
+        return false;
+    }
+
+    std::cout << "PDF report created successfully: " << pdfFile << std::endl;
+    std::cout << "========================================" << std::endl;
     return true;
 }

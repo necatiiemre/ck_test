@@ -30,7 +30,7 @@ except ImportError:
 # ==========================================
 # DEFAULTS
 # ==========================================
-DEFAULT_LOGO_PATH = "assets/company_logo.png"
+DEFAULT_LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "company_logo.png")
 DEFAULT_DEVICE_MODEL = "N/A"
 DEFAULT_DEVICE_SERIAL = "N/A"
 DEFAULT_TESTER_NAME = "N/A"
@@ -47,7 +47,7 @@ RE_RAW_TABLE = re.compile(r'^P\d+\s*║')
 # TIME CONVERTER
 # ==========================================
 def format_duration(duration_str: str) -> str:
-    """ 7129s formatındaki süreyi '7129s (01:58:49)' formatına çevirir """
+    """ Converts duration in '7129s' format to '7129s (01:58:49)' format """
     try:
         match = re.search(r'\d+', duration_str)
         if match:
@@ -145,7 +145,7 @@ class LogParser:
                             break
                 if is_meta_line: continue
 
-                # --- HEALTH BLOK & PDF İÇİN DATA YAKALAMA ---
+                # --- HEALTH BLOCK & PDF DATA CAPTURE ---
                 if "[HEALTH]" in line_clean:
                     h_line = line_clean.replace("[HEALTH]", "").strip()
                     
@@ -230,7 +230,7 @@ class LogParser:
                     state = "NORMAL"
                     continue
 
-                # --- TABLOLARI OKUMA ---
+                # --- READ TABLES ---
                 if current_phase and state.startswith("PHASE_"):
                     clean_table_line = line_clean.replace("│", "║").strip("║ ")
                     if "║" in clean_table_line:
@@ -255,23 +255,23 @@ class LogParser:
             if current_phase:
                 self.data["phases"].append(current_phase)
 
-        # 1. HESAPLAMA YAP (Arka planda tüm veriler kullanılarak yapılır)
+        # 1. EVALUATE RESULTS (uses all collected data)
         self._evaluate_test_results()
         
-        # 2. SADECE HEALTH DATASI OLAN GEÇERLİ TESTLERİ TUT
+        # 2. KEEP ONLY VALID TESTS THAT HAVE HEALTH DATA
         valid_phases = [p for p in self.data["phases"] if p.get("has_health")]
         
-        # 3. İLK TESTİ PDF'TEN ÇIKAR VE KALANLARIN BAŞLIĞINDAKİ SÜREYİ 1 SANİYE AZALT
+        # 3. DROP FIRST TEST FROM PDF AND SUBTRACT 1 SECOND FROM REMAINING PHASE TITLES
         if len(valid_phases) > 0:
-            valid_phases = valid_phases[1:] # İlk testi (indeks 0) çöpe atar
+            valid_phases = valid_phases[1:] # Drop the first test (index 0)
             
             for phase in valid_phases:
-                # Başlıktaki (örn: TEST 2 sec) sayıyı bulup 1 eksiltiriz
+                # Find the number in the title (e.g., TEST 2 sec) and subtract 1
                 phase["name"] = re.sub(r'\d+', lambda m: str(max(0, int(m.group(0)) - 1)), phase["name"])
                 
         self.data["phases"] = valid_phases
         
-        # Global test süresini de 1 saniye azaltalım ki kapakla uyumlu olsun
+        # Subtract 1 second from global test duration to match the cover page
         if self.data["test_duration"] != "N/A":
             try:
                 dur_int = int(re.search(r'\d+', self.data["test_duration"]).group(0))
@@ -304,7 +304,7 @@ class LogParser:
                         
                         if real_drops != table_lost:
                             global_fail = True
-                            mismatches.append(f"Port {port} Uyusmazligi -> Tabloda: {table_lost} | Cihazda: {real_drops}")
+                            mismatches.append(f"Port {port} Mismatch -> Table: {table_lost} | Device: {real_drops}")
                     except ValueError:
                         pass
 
@@ -426,17 +426,17 @@ class PDFReportTemplate:
             canvas_obj.saveState()
             canvas_obj.translate(x_pos, page_height / 2 - 1.07 * inch)
             canvas_obj.rotate(90)
-            canvas_obj.drawString(0, 0, "© TUBITAK BILGEM - Bilisim ve Bilgi Guvenligi Ileri Teknolojiler Arastirma Merkezi")
-            canvas_obj.drawString(0, -0.10 * inch, "P.K 74, Gebze, 41470 Kocaeli, Turkiye")
+            canvas_obj.drawString(0, 0, "© TUBITAK BILGEM - Informatics and Information Security Advanced Technologies Research Center")
+            canvas_obj.drawString(0, -0.10 * inch, "P.O. Box 74, Gebze, 41470 Kocaeli, Turkiye")
             canvas_obj.drawString(0, -0.20 * inch, "Tel: (0262) 675 30 00, Fax: (0262) 648 11 00")
             canvas_obj.restoreState()
 
             canvas_obj.saveState()
             canvas_obj.translate(x_pos, 1.23 * inch)
             canvas_obj.rotate(90)
-            canvas_obj.drawString(0, 0, "Bu dokumanin icerigi Tubitak Bilgem mulkiyetindedir.")
-            canvas_obj.drawString(0, -0.10 * inch, "Sahibinin yazili izni olmadan cogaltilamaz, kopyalanamaz ve")
-            canvas_obj.drawString(0, -0.20 * inch, "ucuncu sahislara aciklanamaz.")
+            canvas_obj.drawString(0, 0, "The contents of this document are the property of TUBITAK BILGEM.")
+            canvas_obj.drawString(0, -0.10 * inch, "It may not be reproduced, copied or disclosed to third parties")
+            canvas_obj.drawString(0, -0.20 * inch, "without the written consent of the proprietor.")
             canvas_obj.restoreState()
 
         canvas_obj.restoreState()
@@ -638,7 +638,7 @@ class PDFReportTemplate:
             for phase in chunk_data["phases"]:
                 
                 # ==========================================
-                # SAYFA 1: PORT İSTATİSTİKLERİ
+                # PAGE 1: PORT STATISTICS
                 # ==========================================
                 story.append(Paragraph(f"{phase['name']} (Port Statistics)", self.styles['PhaseTitle']))
                 
@@ -671,7 +671,7 @@ class PDFReportTemplate:
                 story.append(PageBreak())
                 
                 # ==========================================
-                # SAYFA 2: ASSISTANT FPGA
+                # PAGE 2: ASSISTANT FPGA
                 # ==========================================
                 story.append(Paragraph(f"{phase['name']} (ASSISTANT FPGA Monitor)", self.styles['PhaseTitle']))
                 
@@ -687,7 +687,7 @@ class PDFReportTemplate:
                 story.append(PageBreak())
 
                 # ==========================================
-                # SAYFA 3: MANAGER FPGA
+                # PAGE 3: MANAGER FPGA
                 # ==========================================
                 story.append(Paragraph(f"{phase['name']} (MANAGER FPGA Monitor)", self.styles['PhaseTitle']))
                 
@@ -714,8 +714,10 @@ def worker_generate_pdf(args):
         out_file = f"{base_output[:-4]}_part{idx+1}.pdf"
     else:
         out_file = f"{base_output}_part{idx+1}.pdf"
-        
-    print(f"   -> [Worker {idx+1}/{total_chunks}] Basladi: {len(phases_chunk)} gecerli test isleniyor... (3 Sayfalik Duzen)")
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+
+    print(f"   -> [Worker {idx+1}/{total_chunks}] Started: processing {len(phases_chunk)} valid tests... (3-Page Layout)")
     
     pdf_gen = PDFReportTemplate(logo_path=logo_path)
     chunk_data = {
@@ -725,7 +727,7 @@ def worker_generate_pdf(args):
     }
     
     pdf_gen.generate_pdf_chunk(chunk_data, out_file, is_first_chunk=(idx==0), chunk_idx=idx, total_chunks=total_chunks, summary_table=summary_table)
-    print(f"   ✓ [Worker {idx+1}/{total_chunks}] Tamamlandi: {out_file}")
+    print(f"   ✓ [Worker {idx+1}/{total_chunks}] Completed: {out_file}")
     return out_file
 
 # ==========================================
@@ -742,7 +744,7 @@ def main():
     input_file = args.input
 
     if not os.path.exists(input_file):
-        print(f"HATA: Belirtilen log dosyasi bulunamadi: '{input_file}'")
+        print(f"ERROR: Specified log file not found: '{input_file}'")
         sys.exit(1)
 
     start_time = datetime.now()
@@ -767,13 +769,13 @@ def main():
     print(f"   - Calculated Test Result: {parsed_data['metadata'].get('Test Result', 'Unknown')} (Row-by-Row Matching)")
     
     if parsed_data.get("mismatches"):
-        print("   - DETAY (Neden Fail Verildi?):")
+        print("   - DETAILS (Why Test Failed?):")
         for m in parsed_data["mismatches"]:
             print(f"       * {m}")
 
     if total_phases == 0:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] UYARI: Log dosyasında geçerli Health verisi bulunan test bulunamadı. PDF oluşturulmuyor.")
-        sys.exit(0)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] WARNING: No valid test with Health data found in log file. Skipping PDF generation.")
+        sys.exit(1)
 
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Generating PDF in Batches (Chunk Size: {args.chunk_size})...")
     
@@ -786,30 +788,40 @@ def main():
         worker_tasks.append((i, total_chunks, chunk, parsed_data["metadata"], formatted_duration, args.output, args.logo, summary_table))
 
     cpu_cores = max(1, mp.cpu_count() - 1)
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {cpu_cores} islemci cekirdegi ile {total_chunks} adet PDF parcasi paralel uretiliyor...")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Generating {total_chunks} PDF chunk(s) in parallel using {cpu_cores} CPU core(s)...")
 
     with mp.Pool(processes=cpu_cores) as pool:
         generated_parts = pool.map(worker_generate_pdf, worker_tasks)
 
-    try:
-        from pypdf import PdfWriter
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] pypdf kutuphanesi bulundu. Parcalar tek PDF'te birlestiriliyor...")
-        merger = PdfWriter()
-        for pdf in generated_parts:
-            merger.append(pdf)
-        merger.write(args.output)
-        merger.close()
-        
-        for pdf in generated_parts:
-            os.remove(pdf)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Birlestirme basarili ve gecici parcalar silindi.")
-    except ImportError:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] UYARI: 'pypdf' yuklu olmadigi icin parcalar ayri PDF dosyasi olarak birakildi.")
-        print("Birlestirmek icin: pip install pypdf")
+    if len(generated_parts) == 1:
+        os.rename(generated_parts[0], args.output)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Single chunk renamed to final output: {args.output}")
+    else:
+        try:
+            from pypdf import PdfWriter
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Merging {len(generated_parts)} chunks into a single PDF...")
+            merger = PdfWriter()
+            for pdf in generated_parts:
+                merger.append(pdf)
+            merger.write(args.output)
+            merger.close()
+
+            for pdf in generated_parts:
+                os.remove(pdf)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Merge successful and temporary chunks removed.")
+        except ImportError:
+            import shutil
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] WARNING: 'pypdf' is not installed. Using first chunk as output.")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] NOTE: Only the first {args.chunk_size} tests will be in the final PDF.")
+            print("To get all tests in a single PDF: sudo pip install pypdf")
+            shutil.move(generated_parts[0], args.output)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Remaining chunk files:")
+            for pdf in generated_parts[1:]:
+                print(f"   - {pdf}")
 
     end_time = datetime.now()
     duration = (end_time - start_time).total_seconds()
-    print(f"[{end_time.strftime('%H:%M:%S')}] SUCCESS! Islem tamamlandi. Suren zaman: {duration:.2f} saniye!")
+    print(f"[{end_time.strftime('%H:%M:%S')}] SUCCESS! Process completed. Elapsed time: {duration:.2f} seconds!")
 
 if __name__ == '__main__':
     main()
