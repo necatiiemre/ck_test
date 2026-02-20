@@ -6,6 +6,8 @@
 #include <sstream>
 #include <filesystem>
 #include <ctime>
+#include <cstdlib>
+#include <array>
 
 // Global singleton
 ReportManager g_ReportManager;
@@ -249,5 +251,68 @@ bool ReportManager::writeReportHeader()
 
     std::cout << "Report header written to: " << logFile << std::endl;
 
+    return true;
+}
+
+std::string ReportManager::getPythonScriptPath() const
+{
+    return std::string(PROJECT_ROOT) + "/pdfReportGenerator/dtn_report_pdf_generator.py";
+}
+
+bool ReportManager::createPdfReport()
+{
+    // 1. Log dosya yolunu olustur
+    std::string logDir = getLogPathForUnit();
+    std::string logFile = logDir + "/" + m_testName + ".log";
+
+    // 2. Log dosyasinin varligini kontrol et
+    if (!std::filesystem::exists(logFile))
+    {
+        std::cerr << "Error: Log file not found: " << logFile << std::endl;
+        return false;
+    }
+
+    // 3. Output PDF yolunu belirle
+    std::string pdfFile = logDir + "/" + m_testName + ".pdf";
+
+    // 4. Python script ve logo yollarini al
+    std::string scriptPath = getPythonScriptPath();
+    std::string logoPath = std::string(PROJECT_ROOT) + "/pdfReportGenerator/assets/company_logo.png";
+
+    if (!std::filesystem::exists(scriptPath))
+    {
+        std::cerr << "Error: PDF generator script not found: " << scriptPath << std::endl;
+        return false;
+    }
+
+    // 5. Komutu olustur ve calistir
+    std::string cmd = "python3 \"" + scriptPath + "\""
+                    + " -i \"" + logFile + "\""
+                    + " -o \"" + pdfFile + "\""
+                    + " --logo \"" + logoPath + "\"";
+
+    std::cout << "========================================" << std::endl;
+    std::cout << "  PDF Report Generation" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "Input:  " << logFile << std::endl;
+    std::cout << "Output: " << pdfFile << std::endl;
+
+    int ret = std::system(cmd.c_str());
+
+    if (ret != 0)
+    {
+        std::cerr << "Error: PDF generation failed! (exit code: " << ret << ")" << std::endl;
+        return false;
+    }
+
+    // 6. PDF dosyasinin olusup olusmadigini dogrula
+    if (!std::filesystem::exists(pdfFile))
+    {
+        std::cerr << "Error: PDF file was not created: " << pdfFile << std::endl;
+        return false;
+    }
+
+    std::cout << "PDF report created successfully: " << pdfFile << std::endl;
+    std::cout << "========================================" << std::endl;
     return true;
 }

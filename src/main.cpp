@@ -25,5 +25,13 @@ int main(int argc, char const *argv[])
 
     g_ReportManager.writeReportHeader();
 
+    // ... test islemleri burada gerceklesir ...
+
+    // Test sonrasi PDF raporu olustur
+    if (!g_ReportManager.createPdfReport())
+    {
+        std::cout << "PDF raporu olusturulamadi!" << std::endl;
+    }
+
     return 0;
 }

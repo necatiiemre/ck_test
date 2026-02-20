@@ -23,7 +23,12 @@ public:
     // Log dosyasinin basina rapor bilgilerini yazar
     bool writeReportHeader();
 
+    // Log dosyasindan PDF raporu olusturur
+    bool createPdfReport();
+
 private:
+    // Python script yolunu dondurur
+    std::string getPythonScriptPath() const;
     // Turkce karakter icerip icermedigini kontrol eder
     bool containsTurkishCharacter(const std::string &input) const;
 

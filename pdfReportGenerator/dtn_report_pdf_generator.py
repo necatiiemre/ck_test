@@ -30,7 +30,7 @@ except ImportError:
 # ==========================================
 # DEFAULTS
 # ==========================================
-DEFAULT_LOGO_PATH = "assets/company_logo.png"
+DEFAULT_LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "company_logo.png")
 DEFAULT_DEVICE_MODEL = "N/A"
 DEFAULT_DEVICE_SERIAL = "N/A"
 DEFAULT_TESTER_NAME = "N/A"
