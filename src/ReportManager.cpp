@@ -261,21 +261,21 @@ std::string ReportManager::getPythonScriptPath() const
 
 bool ReportManager::createPdfReport()
 {
-    // 1. Log dosya yolunu olustur
+    // 1. Build log file path
     std::string logDir = getLogPathForUnit();
     std::string logFile = logDir + "/" + m_testName + ".log";
 
-    // 2. Log dosyasinin varligini kontrol et
+    // 2. Check if log file exists
     if (!std::filesystem::exists(logFile))
     {
         std::cerr << "Error: Log file not found: " << logFile << std::endl;
         return false;
     }
 
-    // 3. Output PDF yolunu belirle
+    // 3. Determine output PDF path
     std::string pdfFile = logDir + "/" + m_testName + ".pdf";
 
-    // 4. Python script ve logo yollarini al
+    // 4. Get Python script and logo paths
     std::string scriptPath = getPythonScriptPath();
     std::string logoPath = std::string(PROJECT_ROOT) + "/pdfReportGenerator/assets/company_logo.png";
 
@@ -285,11 +285,12 @@ bool ReportManager::createPdfReport()
         return false;
     }
 
-    // 5. Komutu olustur ve calistir
+    // 5. Build and execute command
     std::string cmd = "python3 \"" + scriptPath + "\""
                     + " -i \"" + logFile + "\""
                     + " -o \"" + pdfFile + "\""
-                    + " --logo \"" + logoPath + "\"";
+                    + " --logo \"" + logoPath + "\""
+                    + " 2>&1";
 
     std::cout << "========================================" << std::endl;
     std::cout << "  PDF Report Generation" << std::endl;
@@ -302,10 +303,13 @@ bool ReportManager::createPdfReport()
     if (ret != 0)
     {
         std::cerr << "Error: PDF generation failed! (exit code: " << ret << ")" << std::endl;
+        std::cerr << "Possible causes:" << std::endl;
+        std::cerr << "  - Log file has no valid test phases with Health data" << std::endl;
+        std::cerr << "  - python3 or reportlab is not installed" << std::endl;
         return false;
     }
 
-    // 6. PDF dosyasinin olusup olusmadigini dogrula
+    // 6. Verify PDF was created
     if (!std::filesystem::exists(pdfFile))
     {
         std::cerr << "Error: PDF file was not created: " << pdfFile << std::endl;

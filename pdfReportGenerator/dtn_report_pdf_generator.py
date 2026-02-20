@@ -773,7 +773,7 @@ def main():
 
     if total_phases == 0:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] WARNING: No valid test with Health data found in log file. Skipping PDF generation.")
-        sys.exit(0)
+        sys.exit(1)
 
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Generating PDF in Batches (Chunk Size: {args.chunk_size})...")
     
