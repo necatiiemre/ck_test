@@ -793,21 +793,31 @@ def main():
     with mp.Pool(processes=cpu_cores) as pool:
         generated_parts = pool.map(worker_generate_pdf, worker_tasks)
 
-    try:
-        from pypdf import PdfWriter
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] pypdf library found. Merging chunks into a single PDF...")
-        merger = PdfWriter()
-        for pdf in generated_parts:
-            merger.append(pdf)
-        merger.write(args.output)
-        merger.close()
-        
-        for pdf in generated_parts:
-            os.remove(pdf)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Merge successful and temporary chunks removed.")
-    except ImportError:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] WARNING: 'pypdf' is not installed. Chunks left as separate PDF files.")
-        print("To merge them: pip install pypdf")
+    if len(generated_parts) == 1:
+        os.rename(generated_parts[0], args.output)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Single chunk renamed to final output: {args.output}")
+    else:
+        try:
+            from pypdf import PdfWriter
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Merging {len(generated_parts)} chunks into a single PDF...")
+            merger = PdfWriter()
+            for pdf in generated_parts:
+                merger.append(pdf)
+            merger.write(args.output)
+            merger.close()
+
+            for pdf in generated_parts:
+                os.remove(pdf)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Merge successful and temporary chunks removed.")
+        except ImportError:
+            import shutil
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] WARNING: 'pypdf' is not installed. Using first chunk as output.")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] NOTE: Only the first {args.chunk_size} tests will be in the final PDF.")
+            print("To get all tests in a single PDF: sudo pip install pypdf")
+            shutil.move(generated_parts[0], args.output)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Remaining chunk files:")
+            for pdf in generated_parts[1:]:
+                print(f"   - {pdf}")
 
     end_time = datetime.now()
     duration = (end_time - start_time).total_seconds()
