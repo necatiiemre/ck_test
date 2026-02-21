@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-project(remote_config_sender)
+project(RemoteConfigSender)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(remote_config_sender
+add_executable(RemoteConfigSender
     main.cpp
     ConfigSender.cpp
 )
