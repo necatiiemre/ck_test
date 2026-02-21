@@ -5,9 +5,9 @@ CC = gcc
 # Directories
 SRCDIR = src
 INCDIR = include
-EMBLATDIR = src/embedded_latency
-PTPDIR = src/ptp
-HEALTHDIR = src/health_monitor
+EMBLATDIR = src/EmbeddedLatency
+PTPDIR = src/Ptp
+HEALTHDIR = src/HealthMonitor
 
 NUM_TX_CORES ?= 4
 NUM_RX_CORES ?= 4
