@@ -112,11 +112,11 @@ std::string SSHDeployer::getExecutableDir() {
 }
 
 std::string SSHDeployer::getSourceRoot() {
-    // Executable is at: build/bin/mainSoftware
-    // Source root is: ../../ from executable
+    // Executable is at: MainSoftware/build/bin/mainSoftware
+    // Project root (TestSoftware) is: ../../../ from executable
     std::filesystem::path exe_dir = getExecutableDir();
-    // Go up from bin -> build -> source_root
-    std::filesystem::path source_root = exe_dir / ".." / "..";
+    // Go up from bin -> build -> MainSoftware -> project_root
+    std::filesystem::path source_root = exe_dir / ".." / ".." / "..";
     return std::filesystem::canonical(source_root).string();
 }
 
