@@ -1635,12 +1635,6 @@ int emb_latency_full_sequence(void) {
 
     if (ask_question("ATE test modunda devam etmek ister misin?")) {
         printf("\n[ATE] ATE test modu secildi.\n");
-
-        // ATE kablolarinin takili oldugundan emin ol
-        while (!ask_question("ATE test mode kablolari takili mi?")) {
-            printf("\nLutfen ATE test kablolarini takin ve tekrar deneyin.\n\n");
-        }
-
         printf("[ATE] Cumulus switch ATE konfigurasyonu gonderiliyor...\n\n");
 
         int ate_result = ate_configure_cumulus();
@@ -1649,6 +1643,11 @@ int emb_latency_full_sequence(void) {
             printf("[ATE] Program devam ediyor ancak ATE config uygulanamadi.\n\n");
         } else {
             printf("\n[ATE] Cumulus ATE konfigurasyonu basariyla uygulandi.\n\n");
+        }
+
+        // Ask for ATE test cables after config is sent
+        while (!ask_question("Are the ATE test mode cables installed?")) {
+            printf("\nPlease install the ATE test mode cables and try again.\n\n");
         }
 
         g_ate_mode = true;
