@@ -171,7 +171,7 @@ bool Dtn::runDpdkInteractive(const std::string &eal_args, const std::string &mak
     // Step 2: Deploy and build DPDK (without running)
     std::cout << "DTN: Deploying and building DPDK..." << std::endl;
     if (!g_ssh_deployer_server.deployAndBuild(
-            "dpdk/AteCumulus/AteTestMode", // source folder
+            "dpdk", // source folder
             "",                // app name (auto-detect)
             false,             // DON'T run after build (we'll run interactively)
             false,             // no sudo for build
@@ -204,7 +204,7 @@ bool Dtn::runDpdkInteractive(const std::string &eal_args, const std::string &mak
     // sudo -S = read password from stdin (only for the -v part)
     // After -v succeeds, subsequent sudo commands don't need password (within timeout)
     // --daemon flag: tells DPDK to fork to background after latency tests
-    std::string dpdk_command = "cd " + remote_dir + "/AteTestMode && "
+    std::string dpdk_command = "cd " + remote_dir + "/dpdk && "
                                                     "echo 'q' | sudo -S -v && " // Authenticate sudo first
                                                     "sudo ./dpdk_app --daemon " +
                                eal_args; // --daemon for background mode
