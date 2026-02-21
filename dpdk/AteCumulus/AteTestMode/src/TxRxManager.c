@@ -1,7 +1,7 @@
-#include "tx_rx_manager.h"
-#include "raw_socket_port.h"  // For external packet PRBS verification
-#include "dpdk_external_tx.h" // For integrated external TX
-#include "embedded_latency/embedded_latency.h" // For ate_mode_enabled()
+#include "TxRxManager.h"
+#include "RawSocketPort.h"  // For external packet PRBS verification
+#include "DpdkExternalTx.h" // For integrated external TX
+#include "EmbeddedLatency/EmbeddedLatency.h" // For ate_mode_enabled()
 #include <rte_lcore.h>
 #include <rte_launch.h>
 #include <rte_cycles.h>

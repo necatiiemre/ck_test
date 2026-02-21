@@ -8,8 +8,8 @@
  * DPDK EAL başlamadan önce çalıştırılmalı!
  */
 
-#include "embedded_latency.h"
-#include "ate_cumulus_config.h"
+#include "EmbeddedLatency.h"
+#include "AteCumulusConfig.h"
 
 #include <stdio.h>
 #include <stdlib.h>

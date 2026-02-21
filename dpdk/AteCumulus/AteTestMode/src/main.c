@@ -9,17 +9,17 @@
 #include <fcntl.h>
 #include <string.h>
 
-#include "helpers.h" // helper_reset_stats, helper_print_stats, signal_handler / force_quit
-#include "port_manager.h"
-#include "eal_init.h"
-#include "socket.h"
-#include "packet.h"
-#include "tx_rx_manager.h"
-#include "raw_socket_port.h"  // Raw socket port support (non-DPDK NICs)
-#include "dpdk_external_tx.h" // DPDK External TX (independent system)
-#include "embedded_latency/embedded_latency.h"  // Embedded HW timestamp latency test
-#include "ptp_slave.h"        // PTP slave for IEEE 1588v2 synchronization
-#include "health_monitor.h"   // Health monitor for DTN status queries
+#include "Helpers.h" // helper_reset_stats, helper_print_stats, signal_handler / force_quit
+#include "PortManager.h"
+#include "EalInit.h"
+#include "Socket.h"
+#include "Packet.h"
+#include "TxRxManager.h"
+#include "RawSocketPort.h"  // Raw socket port support (non-DPDK NICs)
+#include "DpdkExternalTx.h" // DPDK External TX (independent system)
+#include "EmbeddedLatency/EmbeddedLatency.h"  // Embedded HW timestamp latency test
+#include "PtpSlave.h"        // PTP slave for IEEE 1588v2 synchronization
+#include "HealthMonitor.h"   // Health monitor for DTN status queries
 
 // Enable/disable raw socket ports
 #ifndef ENABLE_RAW_SOCKET_PORTS

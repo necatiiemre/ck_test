@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include "health_types.h"
+#include "HealthTypes.h"
 
 // ==========================================
 // HEALTH MONITOR CONFIGURATION

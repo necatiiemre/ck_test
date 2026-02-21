@@ -1,4 +1,4 @@
-#include "helpers.h"
+#include "Helpers.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -6,10 +6,10 @@
 #include <rte_ethdev.h>
 #include <rte_atomic.h>
 
-#include "config.h"
-#include "tx_rx_manager.h"  // rx_stats_per_port için
-#include "dpdk_external_tx.h" // External TX stats için
-#include "raw_socket_port.h"  // reset_raw_socket_stats için
+#include "Config.h"
+#include "TxRxManager.h"  // rx_stats_per_port için
+#include "DpdkExternalTx.h" // External TX stats için
+#include "RawSocketPort.h"  // reset_raw_socket_stats için
 
 // Daemon mode flag - when true, ANSI escape codes are disabled
 bool g_daemon_mode = false;

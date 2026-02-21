@@ -1,4 +1,4 @@
-#include "common.h"
+#include "Common.h"
 
 // Define the global variables here (only once)
 struct ports_config ports_config;

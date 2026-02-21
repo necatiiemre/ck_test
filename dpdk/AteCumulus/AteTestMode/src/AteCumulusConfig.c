@@ -12,7 +12,7 @@
  *   3. sshpass + ssh ile sudo bridge vlan add komutlari
  */
 
-#include "ate_cumulus_config.h"
+#include "AteCumulusConfig.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,7 +1,7 @@
 #ifndef SOCKET_H
 #define SOCKET_H
 
-#include "common.h"
+#include "Common.h"
 
 /**
  * Build socket-to-lcore mapping arrays

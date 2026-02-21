@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <linux/if_packet.h>
-#include "config.h"
+#include "Config.h"
 
 
 // PACKET_MMAP ring buffer configuration for zero-copy

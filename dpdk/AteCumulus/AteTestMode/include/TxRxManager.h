@@ -5,9 +5,9 @@
 #include <rte_mbuf.h>
 #include <rte_ethdev.h>
 #include <rte_atomic.h>
-#include "port.h"
-#include "packet.h"
-#include "config.h"
+#include "Port.h"
+#include "Packet.h"
+#include "Config.h"
 
 #define TX_RING_SIZE 2048
 #define RX_RING_SIZE 8192

@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <rte_mbuf.h>
-#include "ptp_types.h"
-#include "config.h"  // For struct ptp_session_config
+#include "PtpTypes.h"
+#include "Config.h"  // For struct ptp_session_config
 
 // ==========================================
 // PTP INITIALIZATION API

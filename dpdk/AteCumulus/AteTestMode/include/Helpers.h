@@ -1,8 +1,8 @@
 #pragma once
 #include <signal.h>
 #include <getopt.h>
-#include "common.h"
-#include "port.h"
+#include "Common.h"
+#include "Port.h"
 
 // Daemon mode flag - when true, ANSI escape codes are disabled for log file output
 extern bool g_daemon_mode;

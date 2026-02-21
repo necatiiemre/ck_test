@@ -16,9 +16,9 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 
-#include "dpdk_external_tx.h"
-#include "packet.h"
-#include "tx_rx_manager.h"
+#include "DpdkExternalTx.h"
+#include "Packet.h"
+#include "TxRxManager.h"
 
 #if DPDK_EXT_TX_ENABLED
 

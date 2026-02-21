@@ -20,9 +20,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "ptp_types.h"
-#include "ptp_slave.h"
-#include "config.h"
+#include "PtpTypes.h"
+#include "PtpSlave.h"
+#include "Config.h"
 
 // Maximum packets to process per poll
 #define PTP_RX_BURST_SIZE 32

@@ -1,5 +1,5 @@
-#include "packet.h"
-#include "port.h"
+#include "Packet.h"
+#include "Port.h"
 #include <string.h>
 #include <arpa/inet.h>
 #include <stdio.h>

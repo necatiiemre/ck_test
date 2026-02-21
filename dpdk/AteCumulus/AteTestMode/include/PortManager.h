@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include "port.h"
+#include "Port.h"
 
 /**
  * Initialize and discover all available DPDK ports

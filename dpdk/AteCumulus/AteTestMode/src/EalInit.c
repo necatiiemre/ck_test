@@ -1,5 +1,5 @@
-#include "eal_init.h"
-#include "common.h"
+#include "EalInit.h"
+#include "Common.h"
 
 int initialize_eal(int argc, char const *argv[])
 {

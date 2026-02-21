@@ -7,7 +7,7 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include <rte_mbuf.h>
-#include "config.h"  // IMIX configuration
+#include "Config.h"  // IMIX configuration
 
 /*
  *  Paket yapısı:

@@ -6,8 +6,8 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_atomic.h>
-#include "config.h"
-#include "port.h"
+#include "Config.h"
+#include "Port.h"
 
 // ==========================================
 // DPDK EXTERNAL TX SYSTEM

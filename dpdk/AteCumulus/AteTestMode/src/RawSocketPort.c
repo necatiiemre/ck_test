@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
-#include "raw_socket_port.h"
-#include "packet.h"
-#include "dpdk_external_tx.h"
-#include "socket.h"  // for get_unused_cores()
+#include "RawSocketPort.h"
+#include "Packet.h"
+#include "DpdkExternalTx.h"
+#include "Socket.h"  // for get_unused_cores()
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

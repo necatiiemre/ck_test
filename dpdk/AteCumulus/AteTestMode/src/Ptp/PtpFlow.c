@@ -18,9 +18,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ptp_types.h"
-#include "ptp_slave.h"
-#include "config.h"
+#include "PtpTypes.h"
+#include "PtpSlave.h"
+#include "Config.h"
 
 // Store flow handles for cleanup
 static struct rte_flow *ptp_flow_handles[PTP_MAX_PORTS] = {NULL};

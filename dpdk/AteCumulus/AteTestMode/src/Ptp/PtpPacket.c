@@ -15,9 +15,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "ptp_types.h"
-#include "ptp_slave.h"
-#include "config.h"
+#include "PtpTypes.h"
+#include "PtpSlave.h"
+#include "Config.h"
 
 // Helper: Get current time in nanoseconds (CLOCK_REALTIME - same epoch as PTP)
 static inline uint64_t get_realtime_ns(void)

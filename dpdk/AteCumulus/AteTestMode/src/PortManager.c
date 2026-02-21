@@ -1,8 +1,8 @@
-#include "port_manager.h"
-#include "common.h"
+#include "PortManager.h"
+#include "Common.h"
 #include <string.h>
-#include "port.h"
-#include "config.h"
+#include "Port.h"
+#include "Config.h"
 
 int initialize_ports(struct ports_config *config)
 {
