@@ -36,16 +36,16 @@ void port_vlans_load_config(bool ate_mode)
 struct rx_stats rx_stats_per_port[MAX_PORTS];
 
 #if STATS_MODE_DTN
-// DTN port bazlı istatistikler
+// DTN per-port statistics
 struct dtn_port_stats dtn_stats[DTN_PORT_COUNT];
 
-// DTN port mapping tablosu
+// DTN port mapping table
 struct dtn_port_map_entry dtn_port_map[DTN_PORT_COUNT] = DTN_PORT_MAP_INIT;
 
-// VLAN → DTN port hızlı lookup tablosu
+// VLAN → DTN port fast lookup table
 uint8_t vlan_to_dtn_port[DTN_VLAN_LOOKUP_SIZE];
 
-// VLAN flow rule handle'ları (cleanup için)
+// VLAN flow rule handles (for cleanup)
 #define DTN_MAX_FLOW_RULES_PER_PORT 4
 static struct rte_flow *dtn_flow_handles[MAX_PORTS][DTN_MAX_FLOW_RULES_PER_PORT] = {{NULL}};
 #endif /* STATS_MODE_DTN */
@@ -65,9 +65,9 @@ static struct tx_vl_sequence tx_vl_sequences[MAX_PORTS];
 // ==========================================
 // VL ID RANGE DEFINITIONS (Port-Aware)
 // ==========================================
-// Her port için tx_vl_ids ve rx_vl_ids config'den okunur.
-// Her queue için 128 VL-ID aralığı vardır.
-// Örnek: Port 0, Queue 0 için tx_vl_ids[0]=1027 ise → VL range [1027, 1155)
+// tx_vl_ids and rx_vl_ids are read from config for each port.
+// Each queue has a 128 VL-ID range.
+// Example: If tx_vl_ids[0]=1027 for Port 0, Queue 0 → VL range [1027, 1155)
 
 // ==========================================
 // HELPER FUNCTIONS - VL-ID BASED SEQUENCE
@@ -143,7 +143,7 @@ static inline uint16_t extract_vl_id_from_packet(uint8_t *pkt_data, uint16_t l2_
 
 /**
  * Get TX VL ID range start for a port and queue (PORT-AWARE)
- * Config'deki tx_vl_ids değerini döndürür
+ * Returns the tx_vl_ids value from config
  */
 static inline uint16_t get_tx_vl_id_range_start(uint16_t port_id, uint16_t queue_index)
 {
@@ -163,7 +163,7 @@ static inline uint16_t get_tx_vl_id_range_start(uint16_t port_id, uint16_t queue
 
 /**
  * Get TX VL ID range end for a port and queue (exclusive, PORT-AWARE)
- * start + 128 döndürür
+ * Returns start + 128
  */
 static inline uint16_t get_tx_vl_id_range_end(uint16_t port_id, uint16_t queue_index)
 {
@@ -172,7 +172,7 @@ static inline uint16_t get_tx_vl_id_range_end(uint16_t port_id, uint16_t queue_i
 
 /**
  * Get RX VL ID range start for a port and queue (PORT-AWARE)
- * Config'deki rx_vl_ids değerini döndürür
+ * Returns the rx_vl_ids value from config
  */
 static inline uint16_t get_rx_vl_id_range_start(uint16_t port_id, uint16_t queue_index)
 {
@@ -192,7 +192,7 @@ static inline uint16_t get_rx_vl_id_range_start(uint16_t port_id, uint16_t queue
 
 /**
  * Get RX VL ID range end for a port and queue (exclusive, PORT-AWARE)
- * start + 128 döndürür
+ * Returns start + 128
  */
 static inline uint16_t get_rx_vl_id_range_end(uint16_t port_id, uint16_t queue_index)
 {
@@ -250,7 +250,7 @@ static void init_rate_limiter(struct rate_limiter *limiter,
     limiter->max_tokens = limiter->tokens_per_sec / 10000;
 
     // Minimum bucket size to allow at least one burst
-    // IMIX: Ortalama paket boyutu kullan
+    // IMIX: Use average packet size
 #if IMIX_ENABLED
     uint64_t min_bucket = BURST_SIZE * IMIX_AVG_PACKET_SIZE * 2;
 #else
@@ -414,19 +414,19 @@ void init_rx_stats(void)
 
 void init_dtn_port_map(void)
 {
-    // VLAN → DTN port lookup tablosunu doldur
+    // Fill the VLAN → DTN port lookup table
     memset(vlan_to_dtn_port, DTN_VLAN_INVALID, sizeof(vlan_to_dtn_port));
 
     for (int i = 0; i < DTN_DPDK_PORT_COUNT; i++) {
-        // DTN TX VLAN (DTN→Server, server RX'te görülür)
+        // DTN TX VLAN (DTN→Server, seen on server RX)
         if (dtn_port_map[i].tx_vlan < DTN_VLAN_LOOKUP_SIZE) {
             vlan_to_dtn_port[dtn_port_map[i].tx_vlan] = (uint8_t)i;
         }
-        // DTN RX VLAN (Server→DTN, server TX'te kullanılır)
-        // Bu VLAN'lar da lookup'ta olsun (TX worker'da kullanılabilir)
+        // DTN RX VLAN (Server→DTN, used in server TX)
+        // These VLANs should also be in the lookup (can be used in TX worker)
         if (dtn_port_map[i].rx_vlan < DTN_VLAN_LOOKUP_SIZE) {
-            // rx_vlan'ı ayrı bir lookup'a da koyabiliriz, şimdilik tx_vlan yeterli
-            // çünkü PRBS check server RX'te yapılır = tx_vlan üzerinden
+            // We could also put rx_vlan in a separate lookup, tx_vlan is sufficient for now
+            // because PRBS check is done on server RX = via tx_vlan
         }
     }
 
@@ -434,7 +434,7 @@ void init_dtn_port_map(void)
     printf("DTN Ports: %d (DPDK: %d, Raw: 2)\n", DTN_PORT_COUNT, DTN_DPDK_PORT_COUNT);
     printf("VLAN → DTN Port lookup table built\n");
 
-    // Özet tablo yazdır
+    // Print summary table
     printf("\n  DTN Port | DTN RX (Srv TX)      | DTN TX (Srv RX)\n");
     printf("  ---------+----------------------+----------------------\n");
     for (int i = 0; i < DTN_DPDK_PORT_COUNT; i++) {
@@ -468,15 +468,15 @@ void init_dtn_stats(void)
 // ==========================================
 // DTN VLAN-BASED FLOW STEERING
 // ==========================================
-// Her RX VLAN'ı ilgili queue'ya yönlendirir (1:1 mapping)
-// Böylece HW per-queue stats = per-VLAN = per-DTN port stats
+// Steers each RX VLAN to its corresponding queue (1:1 mapping)
+// This way HW per-queue stats = per-VLAN = per-DTN port stats
 
 int dtn_flow_rules_install(uint16_t port_id)
 {
     struct rte_flow_error error;
     int installed = 0;
 
-    // Bu port'un kaç RX VLAN'ı var?
+    // How many RX VLANs does this port have?
     uint16_t rx_vlan_count = port_vlans[port_id].rx_vlan_count;
     if (rx_vlan_count == 0 || rx_vlan_count > DTN_MAX_FLOW_RULES_PER_PORT) {
         printf("DTN Flow: Port %u has %u RX VLANs, skipping\n", port_id, rx_vlan_count);
@@ -499,9 +499,9 @@ int dtn_flow_rules_install(uint16_t port_id)
 
         // Flow attributes
         attr.ingress = 1;
-        attr.priority = 1;  // PTP'den düşük öncelik (PTP priority=0)
+        attr.priority = 1;  // Lower priority than PTP (PTP priority=0)
 
-        // Action: Queue'ya yönlendir
+        // Action: Steer to queue
         struct rte_flow_action_queue queue_action;
         queue_action.index = q;
 
@@ -522,9 +522,9 @@ int dtn_flow_rules_install(uint16_t port_id)
         memset(&vlan_mask, 0, sizeof(vlan_mask));
 
         // TCI = (priority << 13) | (dei << 12) | vlan_id
-        // Sadece VLAN ID'ye göre eşleştir (alt 12 bit)
+        // Match only by VLAN ID (lower 12 bits)
         vlan_spec.tci = rte_cpu_to_be_16(vlan_id);
-        vlan_mask.tci = rte_cpu_to_be_16(0x0FFF);  // Sadece VLAN ID alanı
+        vlan_mask.tci = rte_cpu_to_be_16(0x0FFF);  // VLAN ID field only
 
         pattern[1].type = RTE_FLOW_ITEM_TYPE_VLAN;
         pattern[1].spec = &vlan_spec;
@@ -651,8 +651,8 @@ uint16_t get_rx_vl_id_for_queue(uint16_t port_id, uint16_t queue_id)
 void print_vlan_config(void)
 {
     printf("\n=== Port VLAN & VL ID Configuration (PORT-AWARE) ===\n");
-    printf("Her port icin tx_vl_ids ve rx_vl_ids config'den okunur.\n");
-    printf("Her queue icin %u VL-ID aralik boyutu vardir.\n\n", VL_RANGE_SIZE_PER_QUEUE);
+    printf("tx_vl_ids and rx_vl_ids are read from config for each port.\n");
+    printf("Each queue has a VL-ID range size of %u.\n\n", VL_RANGE_SIZE_PER_QUEUE);
 
     for (uint16_t port = 0; port < MAX_PORTS_CONFIG; port++)
     {
@@ -821,10 +821,10 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
     }
 
 #if STATS_MODE_DTN
-    // DTN modu: RSS kapalı, rte_flow VLAN steering kullanılacak (port start sonrası)
+    // DTN mode: RSS disabled, rte_flow VLAN steering will be used (after port start)
     if (config->nb_rx_queues > 1)
     {
-        // RSS'i yine de açıyoruz çünkü rte_flow match olmayan paketler için fallback lazım
+        // We still enable RSS because fallback is needed for packets not matching rte_flow
         port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
         uint64_t rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_UDP | RTE_ETH_RSS_TCP;
         rss_hf &= dev_info.flow_type_rss_offloads;
@@ -837,7 +837,7 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
         port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
     }
 #else
-    // Eski mod: RSS hash tabanlı dağıtım
+    // Legacy mode: RSS hash-based distribution
     if (config->nb_rx_queues > 1)
     {
         port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
@@ -904,7 +904,7 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
     }
 
 #if STATS_MODE_DTN
-    // DTN modu: VLAN-based flow steering kur (port start sonrası)
+    // DTN mode: Set up VLAN-based flow steering (after port start)
     if (config->nb_rx_queues > 1)
     {
         printf("Port %u: Installing DTN VLAN→Queue flow rules...\n", port_id);
@@ -913,7 +913,7 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
             printf("Warning: DTN flow rules incomplete on port %u, falling back to RSS\n", port_id);
         }
 
-        // RETA'yı yine de ayarla (flow rule miss durumunda fallback)
+        // Still configure RETA (fallback in case of flow rule miss)
         struct rte_eth_rss_reta_entry64 reta_conf[16];
         memset(reta_conf, 0, sizeof(reta_conf));
         uint16_t reta_size = dev_info.reta_size;
@@ -930,7 +930,7 @@ int init_port_txrx(uint16_t port_id, struct txrx_config *config)
         }
     }
 #else
-    // Eski mod: RSS RETA config
+    // Legacy mode: RSS RETA config
     if (config->nb_rx_queues > 1)
     {
         struct rte_eth_rss_reta_entry64 reta_conf[16];
@@ -1044,11 +1044,11 @@ void print_port_stats(struct ports_config *ports_config)
 // TX WORKER - VL-ID BASED SEQUENCE
 // ==========================================
 
-// TEST MODE: Her 100 pakette 1 paket atla, port basina 100000 TX sonrasi dur
+// TEST MODE: Skip 1 packet every 100 packets, stop after 100000 TX per port
 #define TX_TEST_MODE_ENABLED 0
-#define TX_SKIP_EVERY_N_PACKETS 1000000     // Her 100. paket atlanacak (100, 200, 300...)
-#define TX_MAX_PACKETS_PER_PORT 100000 // Port basina maksimum TX sayisi
-#define TX_WAIT_FOR_RX_FLUSH_MS 5000   // RX sayaclarinin guncellenmesi icin bekleme suresi (ms)
+#define TX_SKIP_EVERY_N_PACKETS 1000000     // Every 100th packet will be skipped (100, 200, 300...)
+#define TX_MAX_PACKETS_PER_PORT 100000 // Maximum TX count per port
+#define TX_WAIT_FOR_RX_FLUSH_MS 5000   // Wait time for RX counters to update (ms)
 
 // Per-port TX packet counter (thread-safe)
 static rte_atomic64_t tx_packet_count_per_port[MAX_PORTS];
@@ -1073,7 +1073,7 @@ static void init_tx_test_counters(void)
 int tx_worker(void *arg)
 {
     struct tx_worker_params *params = (struct tx_worker_params *)arg;
-    struct rte_mbuf *pkt;  // Tek paket modu (burst yerine)
+    struct rte_mbuf *pkt;  // Single packet mode (instead of burst)
     bool first_pkt_sent = false;
 
 #if VLAN_ENABLED
@@ -1094,20 +1094,20 @@ int tx_worker(void *arg)
         return -1;
     }
 
-    // PORT-AWARE: Her port için config'deki tx_vl_ids değerlerini kullan
+    // PORT-AWARE: Use tx_vl_ids values from config for each port
     const uint16_t vl_start = get_tx_vl_id_range_start(params->port_id, params->queue_id);
 #if TOKEN_BUCKET_TX_ENABLED
     const uint16_t vl_range_size = GET_TB_VL_RANGE_SIZE(params->port_id);
     const uint16_t vl_end = vl_start + vl_range_size;
 #else
     const uint16_t vl_end = get_tx_vl_id_range_end(params->port_id, params->queue_id);
-    const uint16_t vl_range_size = get_vl_id_range_size(); // Her zaman 128
+    const uint16_t vl_range_size = get_vl_id_range_size(); // Always 128
 #endif
 
 #if IMIX_ENABLED
     // IMIX: Worker-specific offset for pattern rotation (hybrid shuffle)
     const uint8_t imix_offset = (uint8_t)((params->port_id * 4 + params->queue_id) % IMIX_PATTERN_SIZE);
-    uint64_t imix_counter = 0;  // Paket sayacı (IMIX pattern için)
+    uint64_t imix_counter = 0;  // Packet counter (for IMIX pattern)
 #endif
 
     // ==========================================
@@ -1116,13 +1116,13 @@ int tx_worker(void *arg)
     uint64_t tsc_hz = rte_get_tsc_hz();
 
 #if TOKEN_BUCKET_TX_ENABLED
-    // TOKEN BUCKET: Her VL-IDX TB_WINDOW_MS'de TB_PACKETS_PER_VL_PER_WINDOW paket
+    // TOKEN BUCKET: Each VL-IDX sends TB_PACKETS_PER_VL_PER_WINDOW packets per TB_WINDOW_MS
     // Rate = vl_range_size × TB_PACKETS_PER_VL_PER_WINDOW × (1000 / TB_WINDOW_MS) pkt/s
     uint64_t packets_per_sec = (uint64_t)((double)vl_range_size * TB_PACKETS_PER_VL_PER_WINDOW * 1000.0 / TB_WINDOW_MS);
     uint64_t delay_cycles = tsc_hz / packets_per_sec;
 #else
-    // Rate hesaplama: limiter.tokens_per_sec zaten bytes/sec
-    // IMIX: Ortalama paket boyutu kullanarak packets_per_sec hesapla
+    // Rate calculation: limiter.tokens_per_sec is already bytes/sec
+    // IMIX: Use average packet size to calculate packets_per_sec
 #if IMIX_ENABLED
     const uint64_t avg_bytes_per_packet = IMIX_AVG_PACKET_SIZE;
 #else
@@ -1132,18 +1132,18 @@ int tx_worker(void *arg)
     uint64_t delay_cycles = (packets_per_sec > 0) ? (tsc_hz / packets_per_sec) : tsc_hz;
 #endif
 
-    // Mikrosaniye cinsinden paket arası süre
+    // Inter-packet interval in microseconds
     double inter_packet_us = (double)delay_cycles * 1000000.0 / (double)tsc_hz;
 
-    // Stagger: Her port/queue farklı zamanda başlar (soft-start burst önleme)
+    // Stagger: Each port/queue starts at a different time (soft-start burst prevention)
     uint32_t stagger_slot = (params->port_id * 4 + params->queue_id) % 16;
     uint64_t stagger_offset = stagger_slot * (tsc_hz / 200);  // 5ms per slot
 
 #if TOKEN_BUCKET_TX_ENABLED
-    // Global worker phase: Tüm TX worker'ları paket periyodu içinde eşit dağıt
-    // Stagger offset delay_cycles'ın tam katı olduğunda tüm worker'lar aynı fazda
-    // ateş ediyor (ör: 5ms / 14.286μs = 350.0 tam sayı → 32 paket aynı anda!).
-    // Bu fix ile her worker, periyodun 1/total_workers'lık dilimine kayar.
+    // Global worker phase: Distribute all TX workers evenly within the packet period
+    // When stagger offset is an exact multiple of delay_cycles, all workers fire in
+    // the same phase (e.g., 5ms / 14.286us = 350.0 integer -> 32 packets at once!).
+    // With this fix, each worker shifts to a 1/total_workers slice of the period.
     uint32_t total_workers = params->nb_ports * NUM_TX_CORES;
     uint32_t worker_idx = params->port_id * NUM_TX_CORES + params->queue_id;
     uint64_t global_phase = worker_idx * (delay_cycles / total_workers);
@@ -1161,9 +1161,9 @@ int tx_worker(void *arg)
     printf("  -> IMIX pattern: 100, 200, 400, 800, 1200x3, 1518x3 (avg=%lu bytes)\n", avg_bytes_per_packet);
     printf("  -> Worker offset: %u (hybrid shuffle)\n", imix_offset);
 #else
-    printf("  *** SMOOTH PACING - 1 saniyeye yayılmış trafik ***\n");
+    printf("  *** SMOOTH PACING - Traffic spread over 1 second ***\n");
 #endif
-    printf("  -> Pacing: %.1f us/paket (%.0f paket/s), stagger=%ums\n",
+    printf("  -> Pacing: %.1f us/pkt (%.0f pkt/s), stagger=%ums\n",
            inter_packet_us, (double)packets_per_sec, (unsigned)(stagger_offset * 1000 / tsc_hz));
     printf("  VL-ID Based Sequence: Each VL-ID has independent sequence counter\n");
     printf("  Strategy: Round-robin through ALL VL-IDs in range (%u VL-IDs)\n", vl_range_size);
@@ -1204,37 +1204,37 @@ int tx_worker(void *arg)
 #endif
 
         // ==========================================
-        // SMOOTH PACING: Her paket tam zamanında gönderilir
-        // Burst YOK - trafik 1 saniyeye eşit yayılır
+        // SMOOTH PACING: Each packet is sent exactly on time
+        // NO burst - traffic is evenly spread over 1 second
         // ==========================================
         uint64_t now = rte_get_tsc_cycles();
 
-        // Zamanı gelene kadar bekle (busy-wait for precision)
+        // Wait until it's time (busy-wait for precision)
         while (now < next_send_time) {
             rte_pause();
             now = rte_get_tsc_cycles();
         }
 
 #if TOKEN_BUCKET_TX_ENABLED
-        // Geride kalırsak PHASE-PRESERVING SKIP (burst önleme)
-        // next_send_time = now yerine N * delay_cycles ile ilerle
-        // Bu sayede worker'lar arası phase offset korunur
+        // If we fall behind, do PHASE-PRESERVING SKIP (burst prevention)
+        // Instead of next_send_time = now, advance by N * delay_cycles
+        // This preserves the phase offset between workers
         if (next_send_time + delay_cycles < now) {
             uint64_t periods_behind = (now - next_send_time) / delay_cycles;
             next_send_time += periods_behind * delay_cycles;
         }
 #else
-        // Geride kalırsak CATCH-UP YAPMA (burst önleme)
+        // If we fall behind, DO NOT CATCH UP (burst prevention)
         if (next_send_time + delay_cycles < now) {
             next_send_time = now;
         }
 #endif
         next_send_time += delay_cycles;
 
-        // Tek paket tahsisi
+        // Single packet allocation
         pkt = rte_pktmbuf_alloc(params->mbuf_pool);
         if (unlikely(pkt == NULL)) {
-            continue;  // Timing korundu, sadece bu slot'u atla
+            continue;  // Timing preserved, just skip this slot
         }
 
 #if TX_TEST_MODE_ENABLED
@@ -1271,7 +1271,7 @@ int tx_worker(void *arg)
         uint64_t seq = peek_tx_sequence(params->port_id, curr_vl);
 #endif
 
-        // Paket oluştur
+        // Build packet
         struct packet_config cfg = params->pkt_config;
         cfg.vl_id = curr_vl;
         cfg.dst_mac.addr_bytes[0] = 0x03;
@@ -1285,12 +1285,12 @@ int tx_worker(void *arg)
                                 (uint32_t)(curr_vl & 0xFF));
 
 #if IMIX_ENABLED
-        // IMIX: Paket boyutunu pattern'den al
+        // IMIX: Get packet size from pattern
         uint16_t pkt_size = get_imix_packet_size(imix_counter, imix_offset);
         uint16_t prbs_len = calc_prbs_size(pkt_size);
         imix_counter++;
 
-        // Dinamik boyutlu paket oluştur
+        // Build dynamically-sized packet
         build_packet_dynamic(pkt, &cfg, pkt_size);
         fill_payload_with_prbs31_dynamic(pkt, params->port_id, seq, l2_len, prbs_len);
 #else
@@ -1298,7 +1298,7 @@ int tx_worker(void *arg)
         fill_payload_with_prbs31(pkt, params->port_id, seq, l2_len);
 #endif
 
-        // Tek paket gönder
+        // Send single packet
         uint16_t nb_tx = rte_eth_tx_burst(params->port_id, params->queue_id, &pkt, 1);
 
         if (unlikely(!first_pkt_sent && nb_tx > 0))
@@ -1310,13 +1310,13 @@ int tx_worker(void *arg)
 
         if (likely(nb_tx > 0))
         {
-            // Sequence'ı sadece paket başarıyla gönderildikten sonra artır
+            // Increment sequence only after packet is successfully sent
             commit_tx_sequence(params->port_id, curr_vl);
         }
         else
         {
-            // TX queue dolu — paketi at ama sequence'ı artırma
-            // Bir sonraki denemede aynı sequence tekrar kullanılacak
+            // TX queue full — drop packet but do not increment sequence
+            // The same sequence will be reused on the next attempt
             rte_pktmbuf_free(pkt);
         }
 
@@ -1433,7 +1433,7 @@ int rx_worker(void *arg)
     const uint32_t FLUSH = 131072;
 
 #if STATS_MODE_DTN
-    // DTN modunda: queue_id → VLAN → DTN port (1:1 mapping, flow steering aktif)
+    // In DTN mode: queue_id -> VLAN -> DTN port (1:1 mapping, flow steering active)
     const uint16_t rx_vlan_for_queue = port_vlans[params->port_id].rx_vlans[params->queue_id];
     const uint8_t my_dtn_port = (rx_vlan_for_queue < DTN_VLAN_LOOKUP_SIZE)
                                     ? vlan_to_dtn_port[rx_vlan_for_queue]
@@ -1553,8 +1553,8 @@ int rx_worker(void *arg)
                         uint64_t raw_seq = *(uint64_t *)(pkt + raw_payload_off);
 
 #if IMIX_ENABLED
-                        // IMIX: PRBS offset hesabı HEP MAX_PRBS_BYTES ile yapılır
-                        // PRBS boyutu paket boyutundan hesaplanır
+                        // IMIX: PRBS offset calculation ALWAYS uses MAX_PRBS_BYTES
+                        // PRBS size is calculated from packet size
                         uint16_t raw_prbs_len = m->pkt_len - l2_len_novlan - 20 - 8 - RAW_PKT_SEQ_BYTES;
                         if (raw_prbs_len > MAX_PRBS_BYTES) raw_prbs_len = MAX_PRBS_BYTES;
 
@@ -1562,7 +1562,7 @@ int rx_worker(void *arg)
                         uint8_t *expected_prbs = raw_port->prbs_cache_ext + prbs_offset;
                         uint8_t *recv_prbs = pkt + raw_payload_off + RAW_PKT_SEQ_BYTES;
 
-                        // Compare PRBS data (dinamik boyut)
+                        // Compare PRBS data (dynamic size)
                         if (memcmp(recv_prbs, expected_prbs, raw_prbs_len) == 0)
                         {
                             local_good++;
@@ -1622,11 +1622,11 @@ int rx_worker(void *arg)
                             else
                             {
 #if TOKEN_BUCKET_TX_ENABLED
-                                // Multi-queue NOT: Raw socket paketler VLAN tag'sız geldiği için
-                                // NIC RSS onları farklı RX queue'lara dağıtabilir. Bu durumda
-                                // Q1 daha yüksek seq'i Q0'dan önce işleyebilir → false positive gap.
-                                // Bu yüzden real-time gap detection KULLANILMAZ.
-                                // Kayıp tespiti watermark-based (max_seq+1 - pkt_count) ile yapılır
+                                // Multi-queue NOTE: Since raw socket packets arrive without VLAN tags,
+                                // the NIC RSS can distribute them across different RX queues. In that case,
+                                // Q1 may process a higher seq before Q0 -> false positive gap.
+                                // Therefore real-time gap detection is NOT USED.
+                                // Loss detection is done watermark-based (max_seq+1 - pkt_count)
 #else
                                 // Real-time gap detection
                                 uint64_t expected = __atomic_load_n(&raw_seq_tracker->expected_seq, __ATOMIC_ACQUIRE);
@@ -1696,8 +1696,8 @@ int rx_worker(void *arg)
                         uint64_t ext_seq = *(uint64_t *)(pkt + payload_off);
 
 #if IMIX_ENABLED
-                        // IMIX: PRBS offset hesabı HEP MAX_PRBS_BYTES ile yapılır
-                        // PRBS boyutu paket boyutundan hesaplanır
+                        // IMIX: PRBS offset calculation ALWAYS uses MAX_PRBS_BYTES
+                        // PRBS size is calculated from packet size
                         uint16_t ext_prbs_len = m->pkt_len - l2_len_vlan - 20 - 8 - SEQ_BYTES;
                         if (ext_prbs_len > MAX_PRBS_BYTES) ext_prbs_len = MAX_PRBS_BYTES;
 
@@ -1705,7 +1705,7 @@ int rx_worker(void *arg)
                         uint8_t *expected_prbs = raw_port->prbs_cache_ext + prbs_offset;
                         uint8_t *recv_prbs = pkt + payload_off + SEQ_BYTES;
 
-                        // Compare PRBS data (dinamik boyut)
+                        // Compare PRBS data (dynamic size)
                         if (memcmp(recv_prbs, expected_prbs, ext_prbs_len) == 0)
                         {
                             local_good++;
@@ -1772,10 +1772,10 @@ int rx_worker(void *arg)
                             else
                             {
 #if TOKEN_BUCKET_TX_ENABLED
-                                // Multi-queue NOT: External/raw socket paketler VLAN tag'sız
-                                // geldiği için NIC RSS onları farklı RX queue'lara dağıtabilir.
-                                // Gap detection (expected_seq) multi-queue OOO'da false positive verir.
-                                // Kayıp tespiti watermark-based (max_seq+1 - pkt_count) ile yapılır.
+                                // Multi-queue NOTE: Since external/raw socket packets arrive without
+                                // VLAN tags, NIC RSS can distribute them across different RX queues.
+                                // Gap detection (expected_seq) gives false positives in multi-queue OOO.
+                                // Loss detection is done watermark-based (max_seq+1 - pkt_count).
 #else
                                 // Real-time gap detection
                                 uint64_t expected = __atomic_load_n(&ext_seq_tracker->expected_seq, __ATOMIC_ACQUIRE);
@@ -1879,8 +1879,8 @@ int rx_worker(void *arg)
                 uint8_t *recv = pkt + payload_off + SEQ_BYTES;
 
 #if IMIX_ENABLED
-                // IMIX: PRBS offset hesabı HEP MAX_PRBS_BYTES ile yapılır
-                // PRBS boyutu paket boyutundan hesaplanır
+                // IMIX: PRBS offset calculation ALWAYS uses MAX_PRBS_BYTES
+                // PRBS size is calculated from packet size
                 uint16_t prbs_len = m->pkt_len - l2_len_vlan - 20 - 8 - SEQ_BYTES;
                 if (prbs_len > MAX_PRBS_BYTES) prbs_len = MAX_PRBS_BYTES;
 
@@ -1971,7 +1971,7 @@ int rx_worker(void *arg)
                 rte_atomic64_add(&rx_stats_per_port[params->port_id].raw_socket_rx_bytes, local_raw_bytes);
 
 #if STATS_MODE_DTN
-                // DTN port bazlı PRBS stats (queue = VLAN = DTN port)
+                // DTN per-port PRBS stats (queue = VLAN = DTN port)
                 if (my_dtn_port != DTN_VLAN_INVALID) {
                     rte_atomic64_add(&dtn_stats[my_dtn_port].total_rx_pkts, local_rx);
                     rte_atomic64_add(&dtn_stats[my_dtn_port].good_pkts, local_good);
@@ -2025,8 +2025,8 @@ int rx_worker(void *arg)
     // Lost = (max_seq + 1) - pkt_count for each VL-ID
     // ==========================================
 #if STATS_MODE_DTN
-    // DTN modu: Her queue kendi VL-ID aralığı için lost hesaplar
-    // (Flow steering ile her queue = 1 VLAN = 1 DTN port, aralıklar çakışmaz)
+    // DTN mode: Each queue calculates lost for its own VL-ID range
+    // (With flow steering, each queue = 1 VLAN = 1 DTN port, ranges do not overlap)
     {
         uint64_t queue_lost = 0;
         uint16_t vl_start = get_rx_vl_id_range_start(params->port_id, params->queue_id);
@@ -2066,7 +2066,7 @@ int rx_worker(void *arg)
         }
     }
 #else
-    // Eski mod: Sadece queue 0 tüm VL-ID'ler için hesaplar (double-counting önlenir)
+    // Legacy mode: Only queue 0 calculates for all VL-IDs (prevents double-counting)
     if (params->queue_id == 0)
     {
         uint64_t total_lost = 0;
@@ -2670,7 +2670,7 @@ void print_latency_results(void)
 {
     printf("\n");
     printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
-    printf("║                    LATENCY TEST SONUCLARI (Minimum Latency)                              ║\n");
+    printf("║                    LATENCY TEST RESULTS (Minimum Latency)                                 ║\n");
     printf("╠══════════╦══════════╦══════════╦══════════╦═══════════╦═══════════╦═══════════╦══════════╣\n");
     printf("║ TX Port  ║ RX Port  ║  VLAN    ║  VL-ID   ║  Min (us) ║  Avg (us) ║  Max (us) ║  RX/TX   ║\n");
     printf("╠══════════╬══════════╬══════════╬══════════╬═══════════╬═══════════╬═══════════╬══════════╣\n");
@@ -2708,10 +2708,10 @@ void print_latency_results(void)
 
     if (total_rx > 0) {
         double avg_min_latency = total_min_latency / total_rx;
-        printf("║  OZET: %u/%u VLAN basarili | Min Latency Ortalama: %.2f us                              ║\n",
+        printf("║  SUMMARY: %u/%u VLAN successful | Avg Min Latency: %.2f us                              ║\n",
                total_rx, total_tx, avg_min_latency);
     } else {
-        printf("║  OZET: %u/%u basarili | Hic paket alinamadi!                                            ║\n",
+        printf("║  SUMMARY: %u/%u successful | No packets received!                                       ║\n",
                total_rx, total_tx);
     }
 
@@ -2726,9 +2726,9 @@ int start_latency_test(struct ports_config *ports_config, volatile bool *stop_fl
 {
     printf("\n");
     printf("╔══════════════════════════════════════════════════════════════════╗\n");
-    printf("║                    LATENCY TEST BASLIYOR                         ║\n");
-    printf("║  Paket boyutu: %4u bytes                                        ║\n", LATENCY_TEST_PACKET_SIZE);
-    printf("║  Timeout: %u saniye                                               ║\n", LATENCY_TEST_TIMEOUT_SEC);
+    printf("║                    LATENCY TEST STARTING                         ║\n");
+    printf("║  Packet size: %4u bytes                                         ║\n", LATENCY_TEST_PACKET_SIZE);
+    printf("║  Timeout: %u seconds                                              ║\n", LATENCY_TEST_TIMEOUT_SEC);
     printf("╚══════════════════════════════════════════════════════════════════╝\n");
     printf("\n");
 

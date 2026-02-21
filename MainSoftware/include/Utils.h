@@ -25,7 +25,7 @@ namespace utils {
 
     void pressEnterForDebug();
 
-    // Ctrl+C (SIGINT) sinyali gelene kadar bekler, sonra kod devam eder
+    // Waits until Ctrl+C (SIGINT) signal is received, then code continues
     void waitForCtrlC();
 
     // RAII guard to change format only within a specific scope

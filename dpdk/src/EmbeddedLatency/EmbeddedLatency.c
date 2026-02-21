@@ -2,10 +2,10 @@
  * @file embedded_latency.c
  * @brief Embedded HW Timestamp Latency Test Implementation
  *
- * Raw socket + SO_TIMESTAMPING ile NIC HW timestamp kullanarak
- * latency ölçümü yapar.
+ * Performs latency measurement using NIC HW timestamps via
+ * raw socket + SO_TIMESTAMPING.
  *
- * DPDK EAL başlamadan önce çalıştırılmalı!
+ * Must run before DPDK EAL starts!
  */
 
 #include "EmbeddedLatency.h"
@@ -1633,16 +1633,16 @@ int emb_latency_full_sequence(void) {
     // ==========================================
     printf("=== ATE Test Mode Selection ===\n\n");
 
-    if (ask_question("ATE test modunda devam etmek ister misin?")) {
-        printf("\n[ATE] ATE test modu secildi.\n");
-        printf("[ATE] Cumulus switch ATE konfigurasyonu gonderiliyor...\n\n");
+    if (ask_question("Do you want to continue in ATE test mode?")) {
+        printf("\n[ATE] ATE test mode selected.\n");
+        printf("[ATE] Sending Cumulus switch ATE configuration...\n\n");
 
         int ate_result = ate_configure_cumulus();
         if (ate_result != 0) {
-            printf("\n[ATE] HATA: Cumulus ATE konfigurasyonu basarisiz!\n");
-            printf("[ATE] Program devam ediyor ancak ATE config uygulanamadi.\n\n");
+            printf("\n[ATE] ERROR: Cumulus ATE configuration failed!\n");
+            printf("[ATE] Program continues but ATE config could not be applied.\n\n");
         } else {
-            printf("\n[ATE] Cumulus ATE konfigurasyonu basariyla uygulandi.\n\n");
+            printf("\n[ATE] Cumulus ATE configuration applied successfully.\n\n");
         }
 
         // Ask for ATE test cables after config is sent
@@ -1652,8 +1652,8 @@ int emb_latency_full_sequence(void) {
 
         g_ate_mode = true;
 
-        // ATE modunda unit test atlanir
-        printf("[ATE] Unit test atlaniyor - ATE test modunda devam ediliyor.\n\n");
+        // Unit test is skipped in ATE mode
+        printf("[ATE] Skipping unit test - continuing in ATE test mode.\n\n");
 
         g_emb_latency.test_completed = true;
         g_emb_latency.test_passed = (total_fails == 0);
@@ -1661,7 +1661,7 @@ int emb_latency_full_sequence(void) {
         return total_fails;
     }
 
-    printf("Normal test modunda devam ediliyor.\n\n");
+    printf("Continuing in normal test mode.\n\n");
 
     // ==========================================
     // STEP 2: Unit Test (MANDATORY - only in normal mode)

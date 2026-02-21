@@ -12,9 +12,9 @@
 // ==========================================
 // DPDK EXTERNAL TX SYSTEM
 // ==========================================
-// Mevcut DPDK TX'ten BAĞIMSIZ çalışan harici TX sistemi.
-// Port 2,3,4,5'ten switch üzerinden Port 12'ye paket gönderir.
-// Port 12 (raw socket) bu paketleri alıp doğrulama yapar.
+// External TX system that operates INDEPENDENTLY from existing DPDK TX.
+// Sends packets from Port 2,3,4,5 to Port 12 via switch.
+// Port 12 (raw socket) receives these packets and performs validation.
 
 #if DPDK_EXT_TX_ENABLED
 
@@ -24,17 +24,17 @@ struct dpdk_ext_tx_worker_params {
     uint16_t queue_id;          // TX queue ID (0-3)
     uint16_t lcore_id;          // Assigned lcore
     uint16_t vlan_id;           // VLAN tag
-    uint16_t vl_id_start;       // VL-ID başlangıç
-    uint16_t vl_id_count;       // VL-ID sayısı
-    uint32_t rate_mbps;         // Hedef hız
+    uint16_t vl_id_start;       // VL-ID start
+    uint16_t vl_id_count;       // VL-ID count
+    uint32_t rate_mbps;         // Target rate
     struct rte_mempool *mbuf_pool;
     volatile bool *stop_flag;
 };
 
 // Per-port external TX statistics
 struct dpdk_ext_tx_stats {
-    rte_atomic64_t tx_pkts;     // Gönderilen paket sayısı
-    rte_atomic64_t tx_bytes;    // Gönderilen byte sayısı
+    rte_atomic64_t tx_pkts;     // Number of packets sent
+    rte_atomic64_t tx_bytes;    // Number of bytes sent
 };
 
 // Global external TX statistics

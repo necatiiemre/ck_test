@@ -2,10 +2,10 @@
  * @file embedded_latency.h
  * @brief Embedded HW Timestamp Latency Test for DPDK
  *
- * DPDK EAL başlamadan ÖNCE çalıştırılır (raw socket kullanır).
- * Sonuçlar global struct'ta saklanır, DPDK içinden erişilebilir.
+ * Runs BEFORE DPDK EAL starts (uses raw sockets).
+ * Results are stored in a global struct, accessible from within DPDK.
  *
- * ÖNEMLI: Bu test DPDK NIC'leri devralMADAN önce çalışmalı!
+ * IMPORTANT: This test must run BEFORE DPDK takes over the NICs!
  */
 
 #ifndef EMBEDDED_LATENCY_H

@@ -25,11 +25,11 @@ static void signal_handler(int signum)
     }
 }
 
-// Warm-up sırasında HW istatistikleri ve yerel sayaçları sıfırlar
+// Resets HW statistics and local counters during warm-up
 void helper_reset_stats(const struct ports_config *ports_config,
                         uint64_t prev_tx_bytes[], uint64_t prev_rx_bytes[]);
 
-// Her saniye çağır: büyük tablo + kuyruk dağılımları yazdırır
+// Call every second: prints full statistics table + queue distributions
 void helper_print_stats(const struct ports_config *ports_config,
                         const uint64_t prev_tx_bytes[], const uint64_t prev_rx_bytes[],
                         bool warmup_complete, unsigned loop_count, unsigned test_time);

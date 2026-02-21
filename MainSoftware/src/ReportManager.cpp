@@ -94,7 +94,7 @@ bool ReportManager::collectTestInfo()
             continue;
         }
 
-        // Turkce karakter yok, teyit icin tekrar sor
+        // No Turkish character, ask again for confirmation
         std::cout << "Test name: " << m_testName << std::endl;
 
         if (m_testName.compare(m_test_name_correction) == 0)
@@ -203,7 +203,7 @@ bool ReportManager::writeReportHeader()
     std::string logDir = getLogPathForUnit();
     std::string logFile = logDir + "/" + "dpdk_app.log";
 
-    // Mevcut icerik varsa oku
+    // Read existing content if present
     std::string existingContent;
     {
         std::ifstream inFile(logFile);
@@ -216,7 +216,7 @@ bool ReportManager::writeReportHeader()
         }
     }
 
-    // Dosyayi ac ve basina rapor bilgilerini yaz
+    // Open the file and write report header at the beginning
     std::ofstream outFile(logFile);
     if (!outFile.is_open())
     {
@@ -224,7 +224,7 @@ bool ReportManager::writeReportHeader()
         return false;
     }
 
-    // Tarih ve saat bilgisini al
+    // Get date and time information
     std::time_t now = std::time(nullptr);
     char dateTimeBuf[64];
     std::strftime(dateTimeBuf, sizeof(dateTimeBuf), "%B %d, %Y %H:%M:%S", std::localtime(&now));
@@ -241,7 +241,7 @@ bool ReportManager::writeReportHeader()
     outFile << "========================================" << std::endl;
     outFile << std::endl;
 
-    // Mevcut icerigi ekle
+    // Append existing content
     if (!existingContent.empty())
     {
         outFile << existingContent;

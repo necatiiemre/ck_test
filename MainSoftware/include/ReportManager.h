@@ -9,10 +9,10 @@ public:
     ReportManager();
     ~ReportManager();
 
-    // Kullanicidan test bilgilerini toplar
+    // Collects test information from user
     bool collectTestInfo();
 
-    // Test adini dondurur
+    // Returns the test name
     std::string getTestName() const;
     std::string getTesterName() const;
     std::string getQualityCheckerName() const;
@@ -20,22 +20,22 @@ public:
 
     void setUnitName(std::string name);
 
-    // Log dosyasinin basina rapor bilgilerini yazar
+    // Writes report header to the beginning of the log file
     bool writeReportHeader();
 
-    // Log dosyasindan PDF raporu olusturur
+    // Creates PDF report from log file
     bool createPdfReport();
 
 private:
-    // Python script yolunu dondurur
+    // Returns the Python script path
     std::string getPythonScriptPath() const;
-    // Turkce karakter icerip icermedigini kontrol eder
+    // Checks if input contains Turkish characters
     bool containsTurkishCharacter(const std::string &input) const;
 
-    // Sadece rakamlardan olusup olusmadigini kontrol eder
+    // Checks if input contains only digits
     bool containsOnlyDigits(const std::string &input) const;
 
-    // Unit adina gore log dizin yolunu dondurur
+    // Returns the log directory path for the given unit name
     std::string getLogPathForUnit() const;
 
     std::string m_testName;

@@ -8,8 +8,8 @@
 // ==========================================
 // TOKEN BUCKET TX MODE (must be defined early, used throughout)
 // ==========================================
-// 0 = Mevcut smooth pacing modu (rate limiter tabanlı)
-// 1 = Token bucket modu: Her 1ms'de her VL-IDX'ten 1 paket
+// 0 = Current smooth pacing mode (rate limiter based)
+// 1 = Token bucket mode: 1 packet from each VL-IDX every 1ms
 #ifndef TOKEN_BUCKET_TX_ENABLED
 #define TOKEN_BUCKET_TX_ENABLED 0
 #endif
@@ -29,60 +29,60 @@
 // ==========================================
 // LATENCY TEST CONFIGURATION
 // ==========================================
-// Etkinleştirildiğinde:
-// - Her VLAN'dan 1 paket gönderilir (ilk VL-ID kullanılır)
-// - TX timestamp payload'a yazılır
-// - RX'te latency hesaplanır ve gösterilir
-// - 5 saniye timeout
-// - Test sonrası normal moda geçilir
-// - IMIX devre dışı, MAX paket boyutu (1518) kullanılır
+// When enabled:
+// - 1 packet is sent from each VLAN (first VL-ID is used)
+// - TX timestamp is written to payload
+// - Latency is calculated and displayed on RX
+// - 5 second timeout
+// - Normal mode resumes after test
+// - IMIX disabled, MAX packet size (1518) is used
 
 #ifndef LATENCY_TEST_ENABLED
 #define LATENCY_TEST_ENABLED 0
 #endif
 
-#define LATENCY_TEST_TIMEOUT_SEC 5    // Paket bekleme timeout (saniye)
-#define LATENCY_TEST_PACKET_SIZE 1518 // Test paketi boyutu (MAX)
+#define LATENCY_TEST_TIMEOUT_SEC 5    // Packet wait timeout (seconds)
+#define LATENCY_TEST_PACKET_SIZE 1518 // Test packet size (MAX)
 
 // ==========================================
 // IMIX (Internet Mix) CONFIGURATION
 // ==========================================
-// Özel IMIX profili: Farklı paket boyutlarının dağılımı
-// Toplam oran: %10 + %10 + %10 + %10 + %30 + %30 = %100
+// Custom IMIX profile: Distribution of different packet sizes
+// Total ratio: 10% + 10% + 10% + 10% + 30% + 30% = 100%
 //
-// 10 paketlik döngüde:
-//   1x 100 byte  (%10)
-//   1x 200 byte  (%10)
-//   1x 400 byte  (%10)
-//   1x 800 byte  (%10)
-//   3x 1200 byte (%30)
-//   3x 1518 byte (%30)  - MTU sınırı
+// In a 10 packet cycle:
+//   1x 100 byte  (10%)
+//   1x 200 byte  (10%)
+//   1x 400 byte  (10%)
+//   1x 800 byte  (10%)
+//   3x 1200 byte (30%)
+//   3x 1518 byte (30%)  - MTU limit
 //
-// Ortalama paket boyutu: ~964 byte
+// Average packet size: ~964 bytes
 
 #define IMIX_ENABLED 0
 
-// IMIX boyut seviyeleri (Ethernet frame boyutu, VLAN dahil)
-#define IMIX_SIZE_1 100 // En küçük
+// IMIX size levels (Ethernet frame size, including VLAN)
+#define IMIX_SIZE_1 100 // Smallest
 #define IMIX_SIZE_2 200
 #define IMIX_SIZE_3 400
 #define IMIX_SIZE_4 800
 #define IMIX_SIZE_5 1200
-#define IMIX_SIZE_6 1518 // MTU sınırı (VLAN ile 1522, ama 1518 güvenli)
+#define IMIX_SIZE_6 1518 // MTU limit (1522 with VLAN, but 1518 is safe)
 
-// IMIX pattern boyutu (10 paketlik döngü)
+// IMIX pattern size (10 packet cycle)
 #define IMIX_PATTERN_SIZE 10
 
-// IMIX ortalama paket boyutu (rate limiting için)
+// IMIX average packet size (for rate limiting)
 // (100 + 200 + 400 + 800 + 1200*3 + 1518*3) / 10 = 964.4
 #define IMIX_AVG_PACKET_SIZE 964
 
-// IMIX minimum ve maksimum boyutlar
+// IMIX minimum and maximum sizes
 #define IMIX_MIN_PACKET_SIZE IMIX_SIZE_1
 #define IMIX_MAX_PACKET_SIZE IMIX_SIZE_6
 
-// IMIX pattern dizisi (statik tanım - her worker kendi offset'i ile kullanır)
-// Sıra: 100, 200, 400, 800, 1200, 1200, 1200, 1518, 1518, 1518
+// IMIX pattern array (static definition - each worker uses its own offset)
+// Order: 100, 200, 400, 800, 1200, 1200, 1200, 1518, 1518, 1518
 #define IMIX_PATTERN_INIT {                             \
     IMIX_SIZE_1, IMIX_SIZE_2, IMIX_SIZE_3, IMIX_SIZE_4, \
     IMIX_SIZE_5, IMIX_SIZE_5, IMIX_SIZE_5,              \
@@ -91,22 +91,22 @@
 // ==========================================
 // RAW SOCKET PORT CONFIGURATION (Non-DPDK)
 // ==========================================
-// Bu portlar DPDK desteklemeyen NIC'ler için raw socket + zero copy kullanır.
-// Multi-target: Tek port birden fazla hedefe farklı hızlarda gönderebilir.
+// These ports use raw socket + zero copy for NICs that don't support DPDK.
+// Multi-target: A single port can send to multiple destinations at different rates.
 //
-// Port 12 (1G bakır): 5 hedefe gönderim (toplam 960 Mbps)
-//   - Hedef 0: Port 13'e  80 Mbps, VL-ID 4099-4226 (128)
-//   - Hedef 1: Port 5'e  220 Mbps, VL-ID 4227-4738 (512)
-//   - Hedef 2: Port 4'e  220 Mbps, VL-ID 4739-5250 (512)
-//   - Hedef 3: Port 7'e  220 Mbps, VL-ID 5251-5762 (512)
-//   - Hedef 4: Port 6'e  220 Mbps, VL-ID 5763-6274 (512)
+// Port 12 (1G copper): 5 targets (total 960 Mbps)
+//   - Target 0: To Port 13  80 Mbps, VL-ID 4099-4226 (128)
+//   - Target 1: To Port 5  220 Mbps, VL-ID 4227-4738 (512)
+//   - Target 2: To Port 4  220 Mbps, VL-ID 4739-5250 (512)
+//   - Target 3: To Port 7  220 Mbps, VL-ID 5251-5762 (512)
+//   - Target 4: To Port 6  220 Mbps, VL-ID 5763-6274 (512)
 //
-// Port 13 (100M bakır): 1 hedefe gönderim (80 Mbps)
-//   - Hedef 0: Port 12'e 80 Mbps, VL-ID 6275-6306 (32)
+// Port 13 (100M copper): 1 target (80 Mbps)
+//   - Target 0: To Port 12 80 Mbps, VL-ID 6275-6306 (32)
 
 #define MAX_RAW_SOCKET_PORTS 4
 #define RAW_SOCKET_PORT_ID_START 12
-#define MAX_RAW_TARGETS 8 // Maksimum hedef sayısı per port
+#define MAX_RAW_TARGETS 8 // Maximum number of targets per port
 
 // Port 12 configuration (1G copper)
 #define RAW_SOCKET_PORT_12_PCI "01:00.0"
@@ -132,31 +132,31 @@
 // MULTI-TARGET CONFIGURATION
 // ==========================================
 
-// TX Target: Bir portun gönderim yaptığı hedef
+// TX Target: Destination a port sends to
 struct raw_tx_target_config
 {
-  uint16_t target_id;   // Hedef ID (0, 1, 2, ...)
-  uint16_t dest_port;   // Hedef port numarası (13, 5, 4, 7, 6, 12)
-  uint32_t rate_mbps;   // Bu hedef için hız (Mbps)
-  uint16_t vl_id_start; // VL-ID başlangıç
-  uint16_t vl_id_count; // VL-ID sayısı
+  uint16_t target_id;   // Target ID (0, 1, 2, ...)
+  uint16_t dest_port;   // Destination port number (13, 5, 4, 7, 6, 12)
+  uint32_t rate_mbps;   // Rate for this target (Mbps)
+  uint16_t vl_id_start; // VL-ID start
+  uint16_t vl_id_count; // VL-ID count
 };
 
-// RX Source: Bir portun kabul ettiği kaynak (doğrulama için)
+// RX Source: Source accepted by a port (for validation)
 struct raw_rx_source_config
 {
-  uint16_t source_port; // Kaynak port numarası
-  uint16_t vl_id_start; // Beklenen VL-ID başlangıç
-  uint16_t vl_id_count; // Beklenen VL-ID sayısı
+  uint16_t source_port; // Source port number
+  uint16_t vl_id_start; // Expected VL-ID start
+  uint16_t vl_id_count; // Expected VL-ID count
 };
 
 #if TOKEN_BUCKET_TX_ENABLED
 // ==========================================
-// TOKEN BUCKET: Port 12 TX (non-contiguous VL-IDs, VLAN'sız)
+// TOKEN BUCKET: Port 12 TX (non-contiguous VL-IDs, without VLAN)
 // ==========================================
 // 4 target × 16 VL = 64 VL total → 64000 pkt/s
-// VL-IDs are non-contiguous (4'lü bloklar, 8'lik step)
-// raw_tx_worker VL-ID lookup tabloları kullanacak
+// VL-IDs are non-contiguous (blocks of 4, step of 8)
+// raw_tx_worker will use VL-ID lookup tables
 #define PORT_12_TX_TARGET_COUNT 4
 #define PORT_12_TX_TARGETS_INIT {                                                                \
     {.target_id = 0, .dest_port = 5, .rate_mbps = 195, .vl_id_start = 4163, .vl_id_count = 16}, \
@@ -169,11 +169,11 @@ struct raw_rx_source_config
 // Each target has 16 VL-IDs in 4 blocks of 4 (step=8)
 #define TB_PORT_12_VL_BLOCK_SIZE  4
 #define TB_PORT_12_VL_BLOCK_STEP  8
-// VL-ID hesaplama: vl_id_start + (offset / block_size) * block_step + (offset % block_size)
+// VL-ID calculation: vl_id_start + (offset / block_size) * block_step + (offset % block_size)
 
 #else
-// Port 12 TX Targets (4 hedef, toplam 880 Mbps)
-// Port 13'e gönderim kaldırıldı, sadece DPDK portlarına (2,3,4,5) gönderim
+// Port 12 TX Targets (4 targets, total 880 Mbps)
+// Transmission to Port 13 removed, only sending to DPDK ports (2,3,4,5)
 // 4 × 220 Mbps = 880 Mbps total (1G link, ~89% utilization — safe margin)
 #define PORT_12_TX_TARGET_COUNT 4
 #define PORT_12_TX_TARGETS_INIT {                                                               \
@@ -184,8 +184,8 @@ struct raw_rx_source_config
 }
 #endif
 
-// Port 12 RX Sources (Port 13'ten gelen paketler kaldırıldı)
-// Artık sadece DPDK External TX (Port 2,3,4,5) paketleri alınıyor
+// Port 12 RX Sources (packets from Port 13 removed)
+// Now only receiving DPDK External TX (Port 2,3,4,5) packets
 #define PORT_12_RX_SOURCE_COUNT 0
 #define PORT_12_RX_SOURCES_INIT \
   {                             \
@@ -193,10 +193,10 @@ struct raw_rx_source_config
 
 #if TOKEN_BUCKET_TX_ENABLED
 // ==========================================
-// TOKEN BUCKET: Port 13 TX (non-contiguous VL-IDs, VLAN'sız)
+// TOKEN BUCKET: Port 13 TX (non-contiguous VL-IDs, without VLAN)
 // ==========================================
 // 2 target × 3 VL = 6 VL total → 6000 pkt/s
-// VL-IDs: step=4 aralıklı tekil VL-IDX'ler
+// VL-IDs: individual VL-IDXs with step=4 intervals
 #define PORT_13_TX_TARGET_COUNT 2
 #define PORT_13_TX_TARGETS_INIT {                                                              \
     {.target_id = 0, .dest_port = 7, .rate_mbps = 37, .vl_id_start = 4131, .vl_id_count = 3}, \
@@ -206,11 +206,11 @@ struct raw_rx_source_config
 // Token bucket Port 13 VL-ID lookup: step=4, block_size=1
 #define TB_PORT_13_VL_BLOCK_SIZE  1
 #define TB_PORT_13_VL_BLOCK_STEP  4
-// VL-ID hesaplama: vl_id_start + offset * block_step
+// VL-ID calculation: vl_id_start + offset * block_step
 
 #else
-// Port 13 TX Targets (2 hedef, toplam ~90 Mbps)
-// Port 12'ye gönderim kaldırıldı, DPDK portlarına (7, 1) gönderim eklendi
+// Port 13 TX Targets (2 targets, total ~90 Mbps)
+// Transmission to Port 12 removed, sending to DPDK ports (7, 1) added
 #define PORT_13_TX_TARGET_COUNT 2
 #define PORT_13_TX_TARGETS_INIT {                                                              \
     {.target_id = 0, .dest_port = 7, .rate_mbps = 45, .vl_id_start = 4131, .vl_id_count = 16}, \
@@ -218,8 +218,8 @@ struct raw_rx_source_config
 }
 #endif
 
-// Port 13 RX Sources (Port 12'den gelen paketler kaldırıldı)
-// Port 13 artık sadece TX yapıyor (Port 7 ve Port 1'e)
+// Port 13 RX Sources (packets from Port 12 removed)
+// Port 13 now only transmits (to Port 7 and Port 1)
 #define PORT_13_RX_SOURCE_COUNT 0
 #define PORT_13_RX_SOURCES_INIT \
   {                             \
@@ -228,8 +228,8 @@ struct raw_rx_source_config
 // ==========================================
 // ATE MODE TX/RX CONFIGURATION
 // ==========================================
-// ATE modunda Port 12↔14, Port 13↔15 full-duplex iletişim kurar.
-// Her port tek target ile karşı tarafa gönderir, aynı VL-ID aralıklarını kullanır.
+// In ATE mode Port 12↔14, Port 13↔15 establish full-duplex communication.
+// Each port sends to the other side with a single target, using the same VL-ID ranges.
 
 // Port 12 ATE TX: 1 target → Port 14 (960 Mbps, VL-ID 4163-4290)
 #define ATE_PORT_12_TX_TARGET_COUNT 1
@@ -237,7 +237,7 @@ struct raw_rx_source_config
     {.target_id = 0, .dest_port = 14, .rate_mbps = 960, .vl_id_start = 4163, .vl_id_count = 128},   \
 }
 
-// Port 12 ATE RX: Port 14'ten gelen paketler
+// Port 12 ATE RX: Packets from Port 14
 #define ATE_PORT_12_RX_SOURCE_COUNT 1
 #define ATE_PORT_12_RX_SOURCES_INIT {                                   \
     {.source_port = 14, .vl_id_start = 4163, .vl_id_count = 128},      \
@@ -249,7 +249,7 @@ struct raw_rx_source_config
     {.target_id = 0, .dest_port = 12, .rate_mbps = 960, .vl_id_start = 4163, .vl_id_count = 128},   \
 }
 
-// Port 14 ATE RX: Port 12'den gelen paketler
+// Port 14 ATE RX: Packets from Port 12
 #define ATE_PORT_14_RX_SOURCE_COUNT 1
 #define ATE_PORT_14_RX_SOURCES_INIT {                                   \
     {.source_port = 12, .vl_id_start = 4163, .vl_id_count = 128},      \
@@ -261,7 +261,7 @@ struct raw_rx_source_config
     {.target_id = 0, .dest_port = 15, .rate_mbps = 92, .vl_id_start = 4131, .vl_id_count = 32},    \
 }
 
-// Port 13 ATE RX: Port 15'ten gelen paketler
+// Port 13 ATE RX: Packets from Port 15
 #define ATE_PORT_13_RX_SOURCE_COUNT 1
 #define ATE_PORT_13_RX_SOURCES_INIT {                                   \
     {.source_port = 15, .vl_id_start = 4131, .vl_id_count = 32},       \
@@ -273,7 +273,7 @@ struct raw_rx_source_config
     {.target_id = 0, .dest_port = 13, .rate_mbps = 92, .vl_id_start = 4131, .vl_id_count = 32},    \
 }
 
-// Port 15 ATE RX: Port 13'ten gelen paketler
+// Port 15 ATE RX: Packets from Port 13
 #define ATE_PORT_15_RX_SOURCE_COUNT 1
 #define ATE_PORT_15_RX_SOURCES_INIT {                                   \
     {.source_port = 13, .vl_id_start = 4131, .vl_id_count = 32},       \
@@ -305,7 +305,7 @@ struct raw_socket_port_config
 // Raw socket port configurations
 #define RAW_SOCKET_PORTS_CONFIG_INIT                   \
   {                                                    \
-    /* Port 12: 1G bakir, 5 TX hedef, 1 RX kaynak */   \
+    /* Port 12: 1G copper, 5 TX targets, 1 RX source */   \
     {.port_id = 12,                                    \
      .pci_addr = RAW_SOCKET_PORT_12_PCI,               \
      .interface_name = RAW_SOCKET_PORT_12_IFACE,       \
@@ -314,7 +314,7 @@ struct raw_socket_port_config
      .tx_targets = INIT_TX_TARGETS_12,                 \
      .rx_source_count = PORT_12_RX_SOURCE_COUNT,       \
      .rx_sources = INIT_RX_SOURCES_12},                \
-    /* Port 13: 100M bakir, 1 TX hedef, 1 RX kaynak */ \
+    /* Port 13: 100M copper, 1 TX target, 1 RX source */ \
     {                                                  \
       .port_id = 13,                                   \
       .pci_addr = RAW_SOCKET_PORT_13_PCI,              \
@@ -329,7 +329,7 @@ struct raw_socket_port_config
     {0}, {0}                                           \
   }
 
-// Normal modda aktif port sayısı (sadece Port 12, 13)
+// Active port count in normal mode (Port 12, 13 only)
 #define NORMAL_RAW_SOCKET_PORT_COUNT 2
 
 // ATE mode raw socket port configurations (4 port: 12↔14, 13↔15 full-duplex)
@@ -373,40 +373,40 @@ struct raw_socket_port_config
      .rx_sources = ATE_PORT_15_RX_SOURCES_INIT}                         \
   }
 
-// ATE modunda aktif port sayısı (Port 12, 13, 14, 15)
+// Active port count in ATE mode (Port 12, 13, 14, 15)
 #define ATE_RAW_SOCKET_PORT_COUNT 4
 
 // ==========================================
 // VLAN & VL-ID MAPPING (PORT-AWARE)
 // ==========================================
 //
-// Her port için tx_vl_ids ve rx_vl_ids FARKLI olabilir!
-// Aralıklar 128 adet VL-ID içerir ve [start, start+128) şeklinde tanımlanır.
+// tx_vl_ids and rx_vl_ids can be DIFFERENT for each port!
+// Ranges contain 128 VL-IDs and are defined as [start, start+128).
 //
-// Örnek (Port 0):
+// Example (Port 0):
 //   tx_vl_ids = {1027, 1155, 1283, 1411}
-//   Queue 0 → VL ID [1027, 1155)  → 1027..1154 (128 adet)
-//   Queue 1 → VL ID [1155, 1283)  → 1155..1282 (128 adet)
-//   Queue 2 → VL ID [1283, 1411)  → 1283..1410 (128 adet)
-//   Queue 3 → VL ID [1411, 1539)  → 1411..1538 (128 adet)
+//   Queue 0 → VL ID [1027, 1155)  → 1027..1154 (128 entries)
+//   Queue 1 → VL ID [1155, 1283)  → 1155..1282 (128 entries)
+//   Queue 2 → VL ID [1283, 1411)  → 1283..1410 (128 entries)
+//   Queue 3 → VL ID [1411, 1539)  → 1411..1538 (128 entries)
 //
-// Örnek (Port 2 - eski varsayılan değerler):
+// Example (Port 2 - old default values):
 //   tx_vl_ids = {3, 131, 259, 387}
-//   Queue 0 → VL ID [  3, 131)  → 3..130   (128 adet)
-//   Queue 1 → VL ID [131, 259)  → 131..258 (128 adet)
-//   Queue 2 → VL ID [259, 387)  → 259..386 (128 adet)
-//   Queue 3 → VL ID [387, 515)  → 387..514 (128 adet)
+//   Queue 0 → VL ID [  3, 131)  → 3..130   (128 entries)
+//   Queue 1 → VL ID [131, 259)  → 131..258 (128 entries)
+//   Queue 2 → VL ID [259, 387)  → 259..386 (128 entries)
+//   Queue 3 → VL ID [387, 515)  → 387..514 (128 entries)
 //
-// Not: VLAN header'daki VLAN ID (802.1Q tag) ile VL-ID farklı kavramlardır.
-// VL-ID, paketin DST MAC ve DST IP son 2 baytına yazılır.
-// VLAN ID ise .tx_vlans / .rx_vlans dizilerinden gelir.
+// Note: VLAN ID in the VLAN header (802.1Q tag) and VL-ID are different concepts.
+// VL-ID is written to the last 2 bytes of the packet's DST MAC and DST IP.
+// VLAN ID comes from the .tx_vlans / .rx_vlans arrays.
 //
-// Paket oluştururken:
-//   DST MAC: 03:00:00:00:VV:VV  (VV:VL-ID'nin 16-bit'i)
-//   DST IP : 224.224.VV.VV      (VV:VL-ID'nin 16-bit'i)
+// When building packets:
+//   DST MAC: 03:00:00:00:VV:VV  (VV: 16-bit of VL-ID)
+//   DST IP : 224.224.VV.VV      (VV: 16-bit of VL-ID)
 //
-// NOT: g_vlid_ranges artık KULLANILMIYOR! Sadece referans için tutuluyor.
-// Gerçek VL-ID aralıkları port_vlans[].tx_vl_ids ve rx_vl_ids'den okunuyor.
+// NOTE: g_vlid_ranges is NO LONGER USED! Kept for reference only.
+// Actual VL-ID ranges are read from port_vlans[].tx_vl_ids and rx_vl_ids.
 
 typedef struct
 {
@@ -414,18 +414,18 @@ typedef struct
   uint16_t end;   // exclusive
 } vlid_range_t;
 
-// DEPRECATED: Bu sabit değerler artık kullanılmıyor!
-// Her port için config'deki tx_vl_ids/rx_vl_ids değerleri kullanılıyor.
+// DEPRECATED: These constant values are no longer used!
+// tx_vl_ids/rx_vl_ids values from config are used for each port.
 #define VLID_RANGE_COUNT 4
 static const vlid_range_t g_vlid_ranges[VLID_RANGE_COUNT] = {
-    {3, 131},   // Queue 0 (sadece referans)
-    {131, 259}, // Queue 1 (sadece referans)
-    {259, 387}, // Queue 2 (sadece referans)
-    {387, 515}  // Queue 3 (sadece referans)
+    {3, 131},   // Queue 0 (reference only)
+    {131, 259}, // Queue 1 (reference only)
+    {259, 387}, // Queue 2 (reference only)
+    {387, 515}  // Queue 3 (reference only)
 };
 
-// DEPRECATED: Bu makrolar artık kullanılmıyor!
-// tx_rx_manager.c içindeki port-aware fonksiyonları kullanın.
+// DEPRECATED: These macros are no longer used!
+// Use the port-aware functions in tx_rx_manager.c.
 #define VL_RANGE_START(q) (g_vlid_ranges[(q)].start)
 #define VL_RANGE_END(q) (g_vlid_ranges[(q)].end)
 #define VL_RANGE_SIZE(q) (uint16_t)(VL_RANGE_END(q) - VL_RANGE_START(q)) // 128
@@ -444,13 +444,13 @@ struct port_vlan_config
   uint16_t rx_vlans[MAX_RX_VLANS_PER_PORT]; // VLAN header tags
   uint16_t rx_vlan_count;
 
-  // Init için başlangıç VL-ID'leri (queue index ile eşleşir)
-  // Dinamik kullanımda bu VL aralıklarının içinde döneceksin.
+  // Initial VL-IDs for init (matches queue index)
+  // In dynamic usage, you will iterate within these VL ranges.
   uint16_t tx_vl_ids[MAX_TX_VLANS_PER_PORT]; // {3,131,259,387}
   uint16_t rx_vl_ids[MAX_RX_VLANS_PER_PORT]; // {3,131,259,387}
 };
 
-// Port bazlı VLAN/VL-ID şablonu (queue index ↔ VL aralığı başlangıcı eşleşir)
+// Per-port VLAN/VL-ID template (queue index ↔ VL range start matches)
 #define PORT_VLAN_CONFIG_INIT                                                                                                                                                                               \
   {                                                                                                                                                                                                         \
     /* Port 0 */                                                                                                                                                                                            \
@@ -477,10 +477,10 @@ struct port_vlan_config
 // ==========================================
 // ATE TEST MODE - PORT VLAN CONFIGURATION
 // ==========================================
-// ATE test modu icin DPDK port VLAN/VL-ID mapping tablosu.
-// Normal moddaki PORT_VLAN_CONFIG_INIT ile ayni yapi.
-// NOT: Bu degerler placeholder'dir, ATE topolojisine gore degistirilecek!
-// Runtime'da g_ate_mode flag'ine gore secilir.
+// DPDK port VLAN/VL-ID mapping table for ATE test mode.
+// Same structure as PORT_VLAN_CONFIG_INIT in normal mode.
+// NOTE: These values are placeholders, to be changed according to ATE topology!
+// Selected at runtime based on g_ate_mode flag.
 
 #define ATE_PORT_VLAN_CONFIG_INIT                                                                                                                                                                           \
   {                                                                                                                                                                                                         \
@@ -508,7 +508,7 @@ struct port_vlan_config
 // ==========================================
 // TX/RX CORE CONFIGURATION
 // ==========================================
-// (Makefile ile override edilebilir)
+// (Can be overridden via Makefile)
 #ifndef NUM_TX_CORES
 #define NUM_TX_CORES 2
 #endif
@@ -520,8 +520,8 @@ struct port_vlan_config
 // ==========================================
 // PORT-BASED RATE LIMITING
 // ==========================================
-// Port 0, 1, 6, 7, 8: Hızlı (Port 12'ye bağlı değil)
-// Port 2, 3, 4, 5: Yavaş (Port 12'ye bağlı, external TX yapıyorlar)
+// Port 0, 1, 6, 7, 8: Fast (not connected to Port 12)
+// Port 2, 3, 4, 5: Slow (connected to Port 12, doing external TX)
 
 #ifndef TARGET_GBPS_FAST
 #define TARGET_GBPS_FAST 3.6
@@ -535,20 +535,20 @@ struct port_vlan_config
 #define TARGET_GBPS_SLOW 3.4
 #endif
 
-// DPDK-DPDK portları (hızlı)
+// DPDK-DPDK ports (fast)
 #define IS_FAST_PORT(port_id) ((port_id) == 1 || (port_id) == 7 || (port_id) == 8)
 
-// Port 12 ile bağlı DPDK portları (orta hız)
+// DPDK ports connected to Port 12 (medium speed)
 #define IS_MID_PORT(port_id) ((port_id) == 2 || (port_id) == 3 || \
                               (port_id) == 4 || (port_id) == 5)
 
-// Port 13 ile bağlı DPDK portları (yavaş)
+// DPDK ports connected to Port 13 (slow)
 #define IS_SLOW_PORT(port_id) ((port_id) == 0 || (port_id) == 6)
 
-// Port bazlı hedef rate (Gbps)
-// FAST: DPDK-DPDK portları (1,7,8)
-// MID: Port 12 ile bağlı portlar (2,3,4,5)
-// SLOW: Port 13 ile bağlı portlar (0,6)
+// Per-port target rate (Gbps)
+// FAST: DPDK-DPDK ports (1,7,8)
+// MID: Ports connected to Port 12 (2,3,4,5)
+// SLOW: Ports connected to Port 13 (0,6)
 #define GET_PORT_TARGET_GBPS(port_id)                                                \
   (IS_FAST_PORT(port_id) ? TARGET_GBPS_FAST : IS_MID_PORT(port_id) ? TARGET_GBPS_MID \
                                                                    : TARGET_GBPS_SLOW)
@@ -557,44 +557,44 @@ struct port_vlan_config
 #define RATE_LIMITER_ENABLED 1
 #endif
 
-// Kuyruk sayıları core sayılarına eşittir
+// Queue counts equal core counts
 #define NUM_TX_QUEUES_PER_PORT NUM_TX_CORES
 #define NUM_RX_QUEUES_PER_PORT NUM_RX_CORES
 
 // ==========================================
-// PACKET CONFIGURATION (Sabit alanlar)
+// PACKET CONFIGURATION (Fixed fields)
 // ==========================================
 #define DEFAULT_TTL 1
 #define DEFAULT_TOS 0
 #define DEFAULT_VLAN_PRIORITY 0
 
-// MAC/IP şablonları
-#define DEFAULT_SRC_MAC "02:00:00:00:00:20"  // Sabit kaynak MAC
-#define DEFAULT_DST_MAC_PREFIX "03:00:00:00" // Son 2 bayt = VL-ID
+// MAC/IP templates
+#define DEFAULT_SRC_MAC "02:00:00:00:00:20"  // Fixed source MAC
+#define DEFAULT_DST_MAC_PREFIX "03:00:00:00" // Last 2 bytes = VL-ID
 
-#define DEFAULT_SRC_IP "10.0.0.0"       // Sabit kaynak IP
-#define DEFAULT_DST_IP_PREFIX "224.224" // Son 2 bayt = VL-ID
+#define DEFAULT_SRC_IP "10.0.0.0"       // Fixed source IP
+#define DEFAULT_DST_IP_PREFIX "224.224" // Last 2 bytes = VL-ID
 
-// UDP portları
+// UDP ports
 #define DEFAULT_SRC_PORT 100
 #define DEFAULT_DST_PORT 100
 
 // ==========================================
 // STATISTICS CONFIGURATION
 // ==========================================
-#define STATS_INTERVAL_SEC 1 // N saniyede bir istatistik yaz
+#define STATS_INTERVAL_SEC 1 // Write statistics every N seconds
 
 // ==========================================
 // DPDK EXTERNAL TX CONFIGURATION
 // ==========================================
-// Bu sistem mevcut DPDK TX'ten BAĞIMSIZ çalışır.
-// DPDK Port 0,1,2,3 → Switch → Port 12 (raw socket) yolunu kullanır.
-// Her port 4 queue ile 4 farklı VLAN/VL-ID kombinasyonu gönderir.
+// This system operates INDEPENDENTLY from the existing DPDK TX.
+// Uses DPDK Port 0,1,2,3 → Switch → Port 12 (raw socket) path.
+// Each port sends 4 different VLAN/VL-ID combinations via 4 queues.
 //
-// Akış:
+// Flow:
 //   DPDK Port TX → Physical wire → Switch → Port 12 NIC → Raw socket RX
 //
-// Port 12 (raw socket) bu paketleri alıp PRBS ve sequence doğrulaması yapar.
+// Port 12 (raw socket) receives these packets and performs PRBS and sequence validation.
 
 #define DPDK_EXT_TX_ENABLED 1
 #define DPDK_EXT_TX_PORT_COUNT 6 // Port 2,3,4,5 → Port 12 | Port 0,6 → Port 13
@@ -605,17 +605,17 @@ struct dpdk_ext_tx_target
 {
   uint16_t queue_id;    // Queue index (0-3)
   uint16_t vlan_id;     // VLAN tag
-  uint16_t vl_id_start; // VL-ID başlangıç
-  uint16_t vl_id_count; // VL-ID sayısı (32)
-  uint32_t rate_mbps;   // Hedef hız (Mbps)
+  uint16_t vl_id_start; // VL-ID start
+  uint16_t vl_id_count; // VL-ID count (32)
+  uint32_t rate_mbps;   // Target rate (Mbps)
 };
 
 // External TX port configuration
 struct dpdk_ext_tx_port_config
 {
   uint16_t port_id;      // DPDK port ID
-  uint16_t dest_port;    // Hedef raw socket port (12 veya 13)
-  uint16_t target_count; // Hedef sayısı (4)
+  uint16_t dest_port;    // Destination raw socket port (12 or 13)
+  uint16_t target_count; // Number of targets (4)
   struct dpdk_ext_tx_target targets[DPDK_EXT_TX_QUEUES_PER_PORT];
 };
 
@@ -623,8 +623,8 @@ struct dpdk_ext_tx_port_config
 // ==========================================
 // TOKEN BUCKET: DPDK External TX → Port 12
 // ==========================================
-// Her VLAN'dan 4 VL-IDX, her VL-IDX 1ms'de 1 paket
-// Port başı: 4 VLAN × 4 VL = 16 VL → 16000 pkt/s
+// 4 VL-IDX per VLAN, each VL-IDX sends 1 packet per 1ms
+// Per port: 4 VLAN × 4 VL = 16 VL → 16000 pkt/s
 
 // Port 2: VLAN 97-100 → Port 12 (4 VL per VLAN)
 #define DPDK_EXT_TX_PORT_2_TARGETS {                                                          \
@@ -698,16 +698,16 @@ struct dpdk_ext_tx_port_config
 #endif
 
 // ==========================================
-// PORT 0 ve PORT 6 → PORT 13 (100M bakır)
+// PORT 0 and PORT 6 → PORT 13 (100M copper)
 // ==========================================
-// Port 0: 45 Mbps, Port 6: 45 Mbps = Toplam 90 Mbps
+// Port 0: 45 Mbps, Port 6: 45 Mbps = Total 90 Mbps
 
 #if TOKEN_BUCKET_TX_ENABLED
 // ==========================================
 // TOKEN BUCKET: DPDK External TX → Port 13
 // ==========================================
-// Port 0: 3 VLAN × 1 VL = 3 VL → 3000 pkt/s (VLAN 108 hariç)
-// Port 6: 3 VLAN × 1 VL = 3 VL → 3000 pkt/s (VLAN 124 hariç)
+// Port 0: 3 VLAN × 1 VL = 3 VL → 3000 pkt/s (VLAN 108 excluded)
+// Port 6: 3 VLAN × 1 VL = 3 VL → 3000 pkt/s (VLAN 124 excluded)
 #define DPDK_EXT_TX_PORT_0_TARGETS {                                                         \
     {.queue_id = 0, .vlan_id = 105, .vl_id_start = 4099, .vl_id_count = 1, .rate_mbps = 13}, \
     {.queue_id = 1, .vlan_id = 106, .vl_id_start = 4103, .vl_id_count = 1, .rate_mbps = 13}, \
@@ -721,7 +721,7 @@ struct dpdk_ext_tx_port_config
 }
 
 #else
-// Port 0: VLAN 105-108, VL-ID 4099-4114 → Port 13 (toplam 45 Mbps)
+// Port 0: VLAN 105-108, VL-ID 4099-4114 → Port 13 (total 45 Mbps)
 #define DPDK_EXT_TX_PORT_0_TARGETS {                                                         \
     {.queue_id = 0, .vlan_id = 105, .vl_id_start = 4099, .vl_id_count = 4, .rate_mbps = 45}, \
     {.queue_id = 1, .vlan_id = 106, .vl_id_start = 4103, .vl_id_count = 4, .rate_mbps = 45}, \
@@ -729,7 +729,7 @@ struct dpdk_ext_tx_port_config
     {.queue_id = 3, .vlan_id = 108, .vl_id_start = 4111, .vl_id_count = 4, .rate_mbps = 45}, \
 }
 
-// Port 6: VLAN 121-124, VL-ID 4115-4130 → Port 13 (toplam 45 Mbps)
+// Port 6: VLAN 121-124, VL-ID 4115-4130 → Port 13 (total 45 Mbps)
 #define DPDK_EXT_TX_PORT_6_TARGETS {                                                         \
     {.queue_id = 0, .vlan_id = 121, .vl_id_start = 4115, .vl_id_count = 4, .rate_mbps = 45}, \
     {.queue_id = 1, .vlan_id = 122, .vl_id_start = 4119, .vl_id_count = 4, .rate_mbps = 45}, \
@@ -791,7 +791,7 @@ struct dpdk_ext_tx_port_config
 }
 
 // Port 13 RX sources for DPDK external packets (from Port 0,6)
-// VL-ID 4099-4130 aralığı (Port 0: 4099-4114, Port 6: 4115-4130)
+// VL-ID 4099-4130 range (Port 0: 4099-4114, Port 6: 4115-4130)
 #define PORT_13_DPDK_EXT_RX_SOURCE_COUNT 2
 #define PORT_13_DPDK_EXT_RX_SOURCES_INIT {                      \
     {.source_port = 0, .vl_id_start = 4099, .vl_id_count = 16}, \
@@ -874,20 +874,20 @@ struct dpdk_ext_tx_port_config
 // PTP SESSION CONFIGURATION (Static Table)
 // ==========================================
 // Split TX/RX Port Architecture:
-//   - RX port: Sync ve Delay_Resp paketlerini alır (session bu port'ta yaşar)
-//   - TX port: Delay_Req paketini gönderir (farklı port olabilir)
+//   - RX port: Receives Sync and Delay_Resp packets (session lives on this port)
+//   - TX port: Sends Delay_Req packet (can be a different port)
 //
-// Örnek (DTN Port 0):
+// Example (DTN Port 0):
 //   - TX: Server Port 2, VLAN 97 → Mellanox → DTN Port 0
 //   - RX: DTN Port 0 → Mellanox → Server Port 5, VLAN 225
 //
-// Her session için:
-//   - rx_port_id: Sync/Delay_Resp alan port (session owner)
+// For each session:
+//   - rx_port_id: Port receiving Sync/Delay_Resp (session owner)
 //   - rx_vlan: RX VLAN ID
-//   - tx_port_id: Delay_Req gönderen port
+//   - tx_port_id: Port sending Delay_Req
 //   - tx_vlan: TX VLAN ID
-//   - tx_vl_idx: Delay_Req paketine yazılacak VL-IDX
-// NOT: rx_vl_idx konfigüre edilmez, Sync paketinden okunur!
+//   - tx_vl_idx: VL-IDX to write into Delay_Req packet
+// NOTE: rx_vl_idx is not configured, it is read from the Sync packet!
 
 struct ptp_session_config
 {
@@ -899,9 +899,9 @@ struct ptp_session_config
 };
 
 // PTP Port Configuration Table
-// Her entry bir PTP session tanımlar
-// Session, rx_port_id üzerinde yaşar ve tx_port_id üzerinden gönderir
-#define PTP_SESSION_COUNT 32 // DTN Port 0 ve DTN Port 1 için 2 session
+// Each entry defines a PTP session
+// Session lives on rx_port_id and sends via tx_port_id
+#define PTP_SESSION_COUNT 32 // 2 sessions for DTN Port 0 and DTN Port 1
 
 #define PTP_SESSIONS_CONFIG_INIT {                                                                                                                        \
     /* DTN Port 0: RX=Port5/VLAN225, TX=Port2/VLAN97/VL-IDX4420 */                                                                                        \
@@ -960,55 +960,55 @@ struct ptp_session_config
 // ==========================================
 // DTN PORT-BASED STATISTICS MODE
 // ==========================================
-// STATS_MODE_DTN=1: DTN port bazlı istatistik tablosu (34 satır, DTN Port 0-33)
-//   - RX queue steering: rte_flow VLAN match (her queue = 1 VLAN = 1 DTN port)
-//   - HW per-queue stats ile sıfır overhead Gbps hesaplama
-//   - PRBS doğrulama DTN port bazlı
+// STATS_MODE_DTN=1: DTN per-port statistics table (34 rows, DTN Port 0-33)
+//   - RX queue steering: rte_flow VLAN match (each queue = 1 VLAN = 1 DTN port)
+//   - Zero overhead Gbps calculation via HW per-queue stats
+//   - PRBS validation per DTN port
 //
-// STATS_MODE_DTN=0: Eski server port bazlı tablo (8 satır, Server Port 0-7)
-//   - RX queue steering: RSS (hash tabanlı)
-//   - HW toplam port stats
-//   - PRBS doğrulama server port bazlı
+// STATS_MODE_DTN=0: Legacy server per-port table (8 rows, Server Port 0-7)
+//   - RX queue steering: RSS (hash based)
+//   - HW total port stats
+//   - PRBS validation per server port
 
 #ifndef STATS_MODE_DTN
 #define STATS_MODE_DTN 1
 #endif
 
-// DTN port sayısı: 32 DPDK + 2 raw socket (Port 12=DTN32, Port 13=DTN33)
+// DTN port count: 32 DPDK + 2 raw socket (Port 12=DTN32, Port 13=DTN33)
 #define DTN_PORT_COUNT 34
-#define DTN_DPDK_PORT_COUNT 32  // DPDK üzerinden bağlanan DTN portları
-#define DTN_RAW_PORT_12 32      // Port 12 (1G bakır) = DTN Port 32
-#define DTN_RAW_PORT_13 33      // Port 13 (100M bakır) = DTN Port 33
+#define DTN_DPDK_PORT_COUNT 32  // DTN ports connected via DPDK
+#define DTN_RAW_PORT_12 32      // Port 12 (1G copper) = DTN Port 32
+#define DTN_RAW_PORT_13 33      // Port 13 (100M copper) = DTN Port 33
 
-// DTN port başına 1 VLAN
+// 1 VLAN per DTN port
 #define DTN_VLANS_PER_PORT 1
 
 // ==========================================
 // DTN PORT MAPPING TABLE
 // ==========================================
-// Her DTN port: DTN perspektifinden TX/RX
-//   DTN RX = Server gönderir → DTN alır (server_tx_port, rx_vlan)
-//   DTN TX = DTN gönderir → Server alır (server_rx_port, tx_vlan)
+// Each DTN port: TX/RX from DTN perspective
+//   DTN RX = Server sends → DTN receives (server_tx_port, rx_vlan)
+//   DTN TX = DTN sends → Server receives (server_rx_port, tx_vlan)
 //
-// DTN Port 0-31: DPDK portları (her biri 1 VLAN)
+// DTN Port 0-31: DPDK ports (1 VLAN each)
 // DTN Port 32:   Port 12 (1G raw socket, aggregate)
 // DTN Port 33:   Port 13 (100M raw socket, aggregate)
 
 struct dtn_port_map_entry {
-    uint16_t dtn_port_id;       // DTN port numarası (0-33)
+    uint16_t dtn_port_id;       // DTN port number (0-33)
 
-    // DTN RX (Server → DTN): Server bu VLAN'dan gönderir
-    uint16_t rx_vlan;           // Server TX VLAN (DTN bu VLAN'ı alır)
-    uint16_t rx_server_port;    // Server DPDK port (TX yapan)
+    // DTN RX (Server → DTN): Server sends from this VLAN
+    uint16_t rx_vlan;           // Server TX VLAN (DTN receives this VLAN)
+    uint16_t rx_server_port;    // Server DPDK port (the one that TXs)
     uint16_t rx_server_queue;   // Server TX queue index (0-3)
 
-    // DTN TX (DTN → Server): DTN bu VLAN'dan gönderir
-    uint16_t tx_vlan;           // Server RX VLAN (DTN bu VLAN'dan gönderir)
-    uint16_t tx_server_port;    // Server DPDK port (RX yapan)
+    // DTN TX (DTN → Server): DTN sends from this VLAN
+    uint16_t tx_vlan;           // Server RX VLAN (DTN sends from this VLAN)
+    uint16_t tx_server_port;    // Server DPDK port (the one that RXs)
     uint16_t tx_server_queue;   // Server RX queue index (0-3)
 };
 
-// DTN Port Mapping Tablosu (Kaynak: PTP session tablosundan türetildi)
+// DTN Port Mapping Table (Source: derived from PTP session table)
 // Format: {dtn_port, rx_vlan, rx_srv_port, rx_srv_queue, tx_vlan, tx_srv_port, tx_srv_queue}
 #define DTN_PORT_MAP_INIT {                                                                         \
     /* DTN 0-3:   Server TX=Port2(VLAN 97-100),  Server RX=Port5(VLAN 225-228) */                   \
@@ -1091,8 +1091,8 @@ struct dtn_port_map_entry {
                          .tx_vlan = 0, .tx_server_port = 13, .tx_server_queue = 0},                  \
 }
 
-// VLAN → DTN port lookup (hızlı erişim)
-// Index = VLAN ID, Value = DTN port numarası (0xFF = tanımsız)
+// VLAN → DTN port lookup (fast access)
+// Index = VLAN ID, Value = DTN port number (0xFF = undefined)
 #define DTN_VLAN_LOOKUP_SIZE 257  // VLAN 0-256
 #define DTN_VLAN_INVALID 0xFF
 

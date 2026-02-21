@@ -52,8 +52,8 @@ static bool check_and_remove_daemon_flag(int *argc, char const *argv[]) {
     return found;
 }
 
-// force_quit ve signal_handler genelde helpers.h içinde deklarasyon/definasyona sahiptir.
-// Eğer sende helpers.h içinde yoksa, şu satırları açabilirsin:
+// force_quit and signal_handler are typically declared/defined in helpers.h.
+// If not present in your helpers.h, you can uncomment these lines:
 // volatile bool force_quit = false;
 // static void signal_handler(int sig) { (void)sig; force_quit = true; }
 
@@ -117,7 +117,7 @@ int main(int argc, char const *argv[])
             printf("\n*** All latency tests PASSED! ***\n\n");
         }
 
-        // Örnek: Port pair 0-1 için tüm gecikme değerlerini al
+        // Example: Get all latency values for port pair 0-1
         // double switch_us, total_us, unit_us;
         // if (emb_latency_get_all_us(0, &switch_us, &total_us, &unit_us)) {
         //     printf("Port 0-1: Switch=%.2f µs, Total=%.2f µs, Unit=%.2f µs\n",
@@ -395,8 +395,8 @@ int main(int argc, char const *argv[])
     printf("\n");
     printf("╔══════════════════════════════════════════════════════════════════╗\n");
     printf("║            LATENCY TEST MODE ENABLED                             ║\n");
-    printf("║  Her VLAN'dan 1 paket gonderilecek, latency olculecek           ║\n");
-    printf("║  Test sonrasi normal moda gecilecek                              ║\n");
+    printf("║  1 packet will be sent from each VLAN, latency will be measured   ║\n");
+    printf("║  Normal mode will resume after test                              ║\n");
     printf("╚══════════════════════════════════════════════════════════════════╝\n");
     printf("\n");
 
@@ -555,7 +555,7 @@ int main(int argc, char const *argv[])
         sleep(1);
         loop_count++;
 
-        // Warm-up tamamlanınca sıfırla
+        // Reset when warm-up is complete
         if (loop_count == 120 && !warmup_complete)
         {
             printf("\n");
@@ -573,24 +573,24 @@ int main(int argc, char const *argv[])
             warmup_complete = true;
             test_time = 0;
 
-            // Görünürlük için kısa bekleme
+            // Short wait for visibility
             sleep(2);
             continue;
         }
 
-        // Warm-up sonrası test zamanını arttır
+        // Increment test time after warm-up
         if (warmup_complete)
         {
             test_time++;
         }
 
-        // Büyük tablo + kuyruk dağılımları (includes DPDK External TX stats)
+        // Full table + queue distributions (includes DPDK External TX stats)
         helper_print_stats(&ports_config, prev_tx_bytes, prev_rx_bytes,
                            warmup_complete, loop_count, test_time);
 
 #if ENABLE_RAW_SOCKET_PORTS
         // Print raw socket port stats (only if initialized)
-        // DTN modunda raw socket tablosu ayrıca basılmaz, DTN tablosu yeterli
+        // In DTN mode raw socket table is not printed separately, DTN table is sufficient
 #if !STATS_MODE_DTN
         if (raw_ports_initialized)
         {
@@ -607,8 +607,8 @@ int main(int argc, char const *argv[])
 
         fflush(stdout);  // Ensure output is visible on remote/main computer
 
-        // Bir SONRAKİ saniye için prev_* güncelle: (kümülatif HW byte sayaçları)
-        // helper_print_stats per-second hızları prev_* farkına göre hesaplıyor.
+        // Update prev_* for the NEXT second: (cumulative HW byte counters)
+        // helper_print_stats calculates per-second rates based on prev_* difference.
         for (uint16_t i = 0; i < (uint16_t)nb_ports; i++)
         {
             uint16_t port_id = ports_config.ports[i].port_id;

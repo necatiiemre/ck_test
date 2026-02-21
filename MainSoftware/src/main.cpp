@@ -8,7 +8,7 @@ int main(int argc, char const *argv[])
 {
     if (!g_ReportManager.collectTestInfo())
     {
-        std::cout << "Rapor bilgileri alinamadi!" << std::endl;
+        std::cout << "Failed to collect report information!" << std::endl;
         return -1;
     }
 
@@ -19,18 +19,18 @@ int main(int argc, char const *argv[])
 
     if (!g_UnitManager.configureDeviceForUnit(unit))
     {
-        std::cout << "Cihaz konfigurasyon hatasi!" << std::endl;
+        std::cout << "Device configuration error!" << std::endl;
         return -1;
     }
 
     g_ReportManager.writeReportHeader();
 
-    // ... test islemleri burada gerceklesir ...
+    // ... test operations take place here ...
 
-    // Test sonrasi PDF raporu olustur
+    // Create PDF report after test
     if (!g_ReportManager.createPdfReport())
     {
-        std::cout << "PDF raporu olusturulamadi!" << std::endl;
+        std::cout << "Failed to create PDF report!" << std::endl;
     }
 
     return 0;

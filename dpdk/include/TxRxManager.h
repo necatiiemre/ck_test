@@ -16,17 +16,17 @@
 #define BURST_SIZE 32
 
 // VL-ID range limits
-// Her port'un tx_vl_ids başlangıç değerleri farklı olabilir (örn: Port 7 → 3971)
-// Her queue için 128 VL-ID aralığı var
-// Raw socket portları için genişletildi:
+// Each port may have different tx_vl_ids start values (e.g., Port 7 → 3971)
+// Each queue has a 128 VL-ID range
+// Extended for raw socket ports:
 //   - Raw Port 0 (1G): 4099-4226 (128 VL-ID)
 //   - Raw Port 1 (100M): 4227-4258 (32 VL-ID)
-// DPDK External TX için genişletildi:
+// Extended for DPDK External TX:
 //   - Port 2: 4259-4386, Port 3: 4387-4514
 //   - Port 0: 4515-4642, Port 1: 4643-4770
 #define MAX_VL_ID 4800  // Increased to support DPDK external TX (up to 4770)
 #define MIN_VL_ID 3
-#define VL_RANGE_SIZE_PER_QUEUE 128  // Her queue için 128 VL-ID
+#define VL_RANGE_SIZE_PER_QUEUE 128  // 128 VL-IDs per queue
 
 // Global VLAN configuration for all ports
 extern struct port_vlan_config port_vlans[MAX_PORTS_CONFIG];
@@ -57,14 +57,14 @@ struct rx_stats
     rte_atomic64_t good_pkts;
     rte_atomic64_t bad_pkts;
     rte_atomic64_t bit_errors;
-    rte_atomic64_t out_of_order_pkts;  // Sıra dışı gelen paketler
-    rte_atomic64_t lost_pkts;          // Kayıp paketler (sequence gap)
-    rte_atomic64_t duplicate_pkts;     // Tekrar eden paketler
-    rte_atomic64_t short_pkts;         // Minimum uzunluktan kısa paketler
-    rte_atomic64_t external_pkts;      // Harici hatlardan gelen paketler (VL-ID aralık dışı)
-    // Raw socket paketleri (non-VLAN) - DPDK'dan ayrı takip
-    rte_atomic64_t raw_socket_rx_pkts; // Raw socket'ten gelen paket sayısı
-    rte_atomic64_t raw_socket_rx_bytes; // Raw socket'ten gelen byte sayısı
+    rte_atomic64_t out_of_order_pkts;  // Out-of-order packets
+    rte_atomic64_t lost_pkts;          // Lost packets (sequence gap)
+    rte_atomic64_t duplicate_pkts;     // Duplicate packets
+    rte_atomic64_t short_pkts;         // Packets shorter than minimum length
+    rte_atomic64_t external_pkts;      // Packets from external lines (VL-ID out of range)
+    // Raw socket packets (non-VLAN) - tracked separately from DPDK
+    rte_atomic64_t raw_socket_rx_pkts; // Packet count from raw socket
+    rte_atomic64_t raw_socket_rx_bytes; // Byte count from raw socket
 };
 
 extern struct rx_stats rx_stats_per_port[MAX_PORTS];
@@ -74,8 +74,8 @@ extern struct rx_stats rx_stats_per_port[MAX_PORTS];
 // ==========================================
 #if STATS_MODE_DTN
 
-// DTN port bazlı PRBS istatistikleri
-// DTN TX (DTN→Server) kalite metrikleri: Server RX tarafında ölçülür
+// DTN per-port PRBS statistics
+// DTN TX (DTN→Server) quality metrics: measured on Server RX side
 struct dtn_port_stats {
     rte_atomic64_t good_pkts;
     rte_atomic64_t bad_pkts;
@@ -84,15 +84,15 @@ struct dtn_port_stats {
     rte_atomic64_t out_of_order_pkts;
     rte_atomic64_t duplicate_pkts;
     rte_atomic64_t short_pkts;
-    rte_atomic64_t total_rx_pkts;     // Server RX = DTN TX paket sayısı
+    rte_atomic64_t total_rx_pkts;     // Server RX = DTN TX packet count
 };
 
 extern struct dtn_port_stats dtn_stats[DTN_PORT_COUNT];
 
-// DTN port mapping tablosu (runtime'da config'den yüklenir)
+// DTN port mapping table (loaded from config at runtime)
 extern struct dtn_port_map_entry dtn_port_map[DTN_PORT_COUNT];
 
-// VLAN → DTN port hızlı lookup tablosu
+// VLAN → DTN port fast lookup table
 extern uint8_t vlan_to_dtn_port[DTN_VLAN_LOOKUP_SIZE];
 
 /**
@@ -107,7 +107,7 @@ void init_dtn_stats(void);
 
 /**
  * Install VLAN-based rte_flow rules for RX queue steering
- * Her VLAN → ilgili RX queue'ya yönlendirilir (1:1 mapping)
+ * Each VLAN → routed to corresponding RX queue (1:1 mapping)
  */
 int dtn_flow_rules_install(uint16_t port_id);
 
@@ -277,60 +277,60 @@ void init_rx_stats(void);
 
 #if LATENCY_TEST_ENABLED
 
-// Tek bir latency ölçüm sonucu (çoklu örnek destekli)
+// Single latency measurement result (multi-sample supported)
 struct latency_result {
-    uint16_t tx_port;           // Gönderen port
-    uint16_t rx_port;           // Alan port
+    uint16_t tx_port;           // Sender port
+    uint16_t rx_port;           // Receiver port
     uint16_t vlan_id;           // VLAN ID
     uint16_t vl_id;             // VL-ID
-    uint64_t tx_timestamp;      // Son TX zamanı (TSC cycles)
-    uint64_t rx_timestamp;      // Son RX zamanı (TSC cycles)
-    uint64_t latency_cycles;    // Son gecikme (cycles)
-    double   latency_us;        // Ortalama gecikme (mikrosaniye)
-    double   min_latency_us;    // Minimum gecikme
-    double   max_latency_us;    // Maximum gecikme
-    double   sum_latency_us;    // Toplam gecikme (ortalama hesabı için)
-    uint32_t tx_count;          // Gönderilen paket sayısı
-    uint32_t rx_count;          // Alınan paket sayısı
-    bool     received;          // En az 1 paket alındı mı?
-    bool     prbs_ok;           // PRBS doğrulama başarılı mı?
+    uint64_t tx_timestamp;      // Last TX time (TSC cycles)
+    uint64_t rx_timestamp;      // Last RX time (TSC cycles)
+    uint64_t latency_cycles;    // Last latency (cycles)
+    double   latency_us;        // Average latency (microseconds)
+    double   min_latency_us;    // Minimum latency
+    double   max_latency_us;    // Maximum latency
+    double   sum_latency_us;    // Total latency (for average calculation)
+    uint32_t tx_count;          // Number of packets sent
+    uint32_t rx_count;          // Number of packets received
+    bool     received;          // At least 1 packet received?
+    bool     prbs_ok;           // PRBS validation successful?
 };
 
-// Port başına latency test durumu
-#define MAX_LATENCY_TESTS_PER_PORT 32  // Max VLAN sayısı kadar
+// Per-port latency test state
+#define MAX_LATENCY_TESTS_PER_PORT 32  // Up to max VLAN count
 
 struct port_latency_test {
     uint16_t port_id;
-    uint16_t test_count;                                    // Bu port için test sayısı
+    uint16_t test_count;                                    // Number of tests for this port
     struct latency_result results[MAX_LATENCY_TESTS_PER_PORT];
-    volatile bool tx_complete;                              // TX tamamlandı mı?
-    volatile bool rx_complete;                              // Tüm RX tamamlandı mı?
+    volatile bool tx_complete;                              // TX completed?
+    volatile bool rx_complete;                              // All RX completed?
 };
 
-// Global latency test durumu
+// Global latency test state
 struct latency_test_state {
-    volatile bool test_running;             // Test devam ediyor mu?
-    volatile bool test_complete;            // Test tamamlandı mı?
-    uint64_t tsc_hz;                        // TSC frekansı (cycles/sec)
-    uint64_t test_start_time;               // Test başlangıç zamanı
+    volatile bool test_running;             // Is test running?
+    volatile bool test_complete;            // Is test complete?
+    uint64_t tsc_hz;                        // TSC frequency (cycles/sec)
+    uint64_t test_start_time;               // Test start time
     struct port_latency_test ports[MAX_PORTS];
 };
 
 extern struct latency_test_state g_latency_test;
 
 /**
- * Latency testi başlat
- * Her port için her VLAN'dan 1 paket gönderir
+ * Start latency test
+ * Sends 1 packet from each VLAN for each port
  */
 int start_latency_test(struct ports_config *ports_config, volatile bool *stop_flag);
 
 /**
- * Latency test sonuçlarını yazdır
+ * Print latency test results
  */
 void print_latency_results(void);
 
 /**
- * Latency test durumunu sıfırla
+ * Reset latency test state
  */
 void reset_latency_test(void);
 

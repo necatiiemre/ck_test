@@ -63,12 +63,12 @@
 1514 20
 */
 
-#define RAW_IMIX_AVG_PACKET_SIZE 960  // Yaklaşık ortalama
+#define RAW_IMIX_AVG_PACKET_SIZE 960  // Approximate average
 
-// PRBS offset hesabı için maksimum boyut (VLAN'lı DPDK ile uyumlu)
+// Maximum size for PRBS offset calculation (compatible with VLAN-enabled DPDK)
 #define RAW_MAX_PRBS_BYTES RAW_PKT_PRBS_BYTES  // 1459
 
-// Raw IMIX pattern (VLAN'sız boyutlar)
+// Raw IMIX pattern (sizes without VLAN)
 #define RAW_IMIX_PATTERN_INIT { \
     RAW_IMIX_SIZE_1, RAW_IMIX_SIZE_2, RAW_IMIX_SIZE_3, RAW_IMIX_SIZE_4, \
     RAW_IMIX_SIZE_5, RAW_IMIX_SIZE_5, RAW_IMIX_SIZE_5, \
@@ -298,7 +298,7 @@ void reset_raw_socket_stats(void);
 void cleanup_raw_socket_ports(void);
 uint64_t get_time_ns(void);
 
-// Global sequence tracking lost counts (DTN TX kalite ölçümü)
+// Global sequence tracking lost counts (DTN TX quality measurement)
 uint64_t get_global_sequence_lost(void);      // Port 12
 uint64_t get_global_sequence_lost_p13(void);   // Port 13
 

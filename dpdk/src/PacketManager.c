@@ -129,7 +129,7 @@ void init_prbs_cache_for_all_ports(uint16_t nb_ports, const struct ports_config 
 
         printf("  Status: PRBS cache initialized successfully\n");
 
-        // Debug: İlk 4 iterasyonu göster
+        // Debug: Show first 4 iterations
         {
             uint32_t debug_state = port_prbs_cache[port].initial_state;
             printf("  First 4 iterations:\n");
@@ -206,7 +206,7 @@ void fill_payload_with_prbs31_dynamic(struct rte_mbuf *mbuf, uint16_t port_id,
 
     const uint32_t payload_offset = l2_len + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
 
-    // Check if offset is valid (dinamik prbs_len ile kontrol)
+    // Check if offset is valid (dynamic prbs_len validation)
     if (unlikely(payload_offset + SEQ_BYTES + prbs_len > rte_pktmbuf_data_len(mbuf))) {
         printf("Error: Invalid payload offset %u + seq %u + prbs %u > data_len %u\n",
                payload_offset, SEQ_BYTES, prbs_len, rte_pktmbuf_data_len(mbuf));
@@ -220,11 +220,11 @@ void fill_payload_with_prbs31_dynamic(struct rte_mbuf *mbuf, uint16_t port_id,
     // PRBS data starts after sequence number
     uint8_t *prbs_ptr = rte_pktmbuf_mtod_offset(mbuf, uint8_t *, payload_offset + SEQ_BYTES);
 
-    // IMIX: PRBS offset hesabı HEP MAX_PRBS_BYTES ile yapılır
-    // Bu sayede RX tarafı sequence'dan offset'i hesaplayabilir
+    // IMIX: PRBS offset is ALWAYS calculated with MAX_PRBS_BYTES
+    // This way the RX side can calculate the offset from the sequence
     const uint64_t start_offset = (sequence_number * (uint64_t)MAX_PRBS_BYTES) % (uint64_t)PRBS_CACHE_SIZE;
 
-    // Use extended cache - sadece prbs_len kadar kopyala
+    // Use extended cache - copy only prbs_len bytes
     rte_memcpy(prbs_ptr,
                &port_prbs_cache[port_id].cache_ext[start_offset],
                prbs_len);
@@ -421,7 +421,7 @@ int build_packet_dynamic(struct rte_mbuf *mbuf, const struct packet_config *conf
 
     uint8_t *pkt_data = rte_pktmbuf_mtod(mbuf, uint8_t *);
 
-    // Payload boyutunu hesapla
+    // Calculate payload size
 #if VLAN_ENABLED
     const uint16_t l2_len = ETH_HDR_SIZE + VLAN_HDR_SIZE;
 #else
@@ -466,7 +466,7 @@ int build_packet_dynamic(struct rte_mbuf *mbuf, const struct packet_config *conf
     ip->src_addr = rte_cpu_to_be_32(config->src_ip);
     ip->dst_addr = rte_cpu_to_be_32(config->dst_ip);
 
-    // IP checksum hesapla
+    // Calculate IP checksum
     struct rte_ipv4_hdr ip_copy;
     memcpy(&ip_copy, ip, sizeof(struct rte_ipv4_hdr));
     ip->hdr_checksum = calculate_ip_checksum(&ip_copy);

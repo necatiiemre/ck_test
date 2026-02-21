@@ -10,17 +10,17 @@
 #include "Config.h"  // IMIX configuration
 
 /*
- *  Paket yapısı:
+ *  Packet structure:
  *  ┌──────────────────────────────────────────┐
  *  │ Ethernet Header (14 B)                  │
- *  │ VLAN Header (4 B, opsiyonel)            │
+ *  │ VLAN Header (4 B, optional)             │
  *  │ IPv4 Header (20 B)                      │
  *  │ UDP Header (8 B)                        │
  *  │ Payload (Seq + PRBS Data)               │
  *  └──────────────────────────────────────────┘
  *
- *  DST MAC ve DST IP son 2 byte = VL-ID
- *  VLAN ID = IEEE 802.1Q tag (802.1Q TCI içinde taşınır)
+ *  DST MAC and DST IP last 2 bytes = VL-ID
+ *  VLAN ID = IEEE 802.1Q tag (carried in 802.1Q TCI)
  */
 
 #ifdef USE_VLAN
@@ -43,7 +43,7 @@
 // Normal mod:
 //   [Sequence 8B][PRBS Data 1459B]
 //
-// Latency test modu:
+// Latency test mode:
 //   [Sequence 8B][TX Timestamp 8B][PRBS Data 1451B]
 //
 // TX Timestamp = rte_rdtsc() (CPU cycle counter)
@@ -51,7 +51,7 @@
 #define TX_TIMESTAMP_BYTES      8
 #define LATENCY_PAYLOAD_OFFSET  (SEQ_BYTES + TX_TIMESTAMP_BYTES)  // 16 bytes header
 
-// Latency test modunda PRBS boyutu (1518 - 18 - 20 - 8 - 16 = 1456)
+// PRBS size in latency test mode (1518 - 18 - 20 - 8 - 16 = 1456)
 #if VLAN_ENABLED
 #define LATENCY_PRBS_BYTES  (LATENCY_TEST_PACKET_SIZE - ETH_HDR_SIZE - VLAN_HDR_SIZE - IP_HDR_SIZE - UDP_HDR_SIZE - SEQ_BYTES - TX_TIMESTAMP_BYTES)
 #else
@@ -88,22 +88,22 @@
 // ==========================================
 // IMIX SUPPORT - DYNAMIC PACKET SIZES
 // ==========================================
-// IMIX modunda paket boyutları değişken olur.
-// MAX_PRBS_BYTES: PRBS offset hesabı için sabit (en büyük PRBS boyutu)
-// Bu değer tüm boyutlar için aynı formülle kullanılır:
+// In IMIX mode, packet sizes are variable.
+// MAX_PRBS_BYTES: Constant for PRBS offset calculation (largest PRBS size)
+// This value is used with the same formula for all sizes:
 //   offset = (sequence × MAX_PRBS_BYTES) % PRBS_CACHE_SIZE
-// Böylece RX tarafı sequence'dan offset'i hesaplayabilir.
+// This way, the RX side can calculate the offset from the sequence.
 
-#define MAX_PRBS_BYTES NUM_PRBS_BYTES  // 1459 (VLAN) veya 1463 (non-VLAN)
+#define MAX_PRBS_BYTES NUM_PRBS_BYTES  // 1459 (VLAN) or 1463 (non-VLAN)
 
-// IMIX için minimum payload boyutu
-// 100 byte paket: 100 - L2(18) - IP(20) - UDP(8) = 54 byte payload
+// Minimum payload size for IMIX
+// 100 byte packet: 100 - L2(18) - IP(20) - UDP(8) = 54 byte payload
 // Payload = SEQ(8) + PRBS(46) minimum
 #define MIN_IMIX_PAYLOAD_VLAN    (100 - ETH_HDR_SIZE - VLAN_HDR_SIZE - IP_HDR_SIZE - UDP_HDR_SIZE)
 #define MIN_IMIX_PAYLOAD_NO_VLAN (100 - ETH_HDR_SIZE - IP_HDR_SIZE - UDP_HDR_SIZE)
 #define MIN_IMIX_PRBS_BYTES      (MIN_IMIX_PAYLOAD_VLAN - SEQ_BYTES)  // 46 bytes
 
-// Paket boyutundan PRBS boyutunu hesapla
+// Calculate PRBS size from packet size
 #if VLAN_ENABLED
 # define CALC_PRBS_LEN(pkt_size) ((pkt_size) - ETH_HDR_SIZE - VLAN_HDR_SIZE - IP_HDR_SIZE - UDP_HDR_SIZE - SEQ_BYTES)
 # define CALC_PAYLOAD_LEN(pkt_size) ((pkt_size) - ETH_HDR_SIZE - VLAN_HDR_SIZE - IP_HDR_SIZE - UDP_HDR_SIZE)
@@ -151,14 +151,14 @@ struct packet_template {
 // ==========================================
 //
 // VLAN ID   → 802.1Q header tag
-// VL ID     → paket içinde MAC/IP eşlemesi için kullanılır
+// VL ID     → used for MAC/IP mapping within the packet
 //
 struct packet_config {
 #if VLAN_ENABLED
     uint16_t vlan_id;          // VLAN header tag (802.1Q)
     uint8_t  vlan_priority;
 #endif
-    uint16_t vl_id;            // VL ID (MAC/IP için)
+    uint16_t vl_id;            // VL ID (for MAC/IP)
     struct rte_ether_addr src_mac;
     struct rte_ether_addr dst_mac;
     uint32_t src_ip;
@@ -206,13 +206,13 @@ int  set_mac_from_string(struct rte_ether_addr *mac, const char *mac_str);
 int  set_ip_from_string(uint32_t *ip, const char *ip_str);
 void print_packet_info(const struct packet_config *config);
 
-// Fill PRBS payload for TX (dinamik boyut destekli)
-// prbs_len: Yazılacak PRBS byte sayısı (IMIX için değişken)
+// Fill PRBS payload for TX (dynamic size supported)
+// prbs_len: Number of PRBS bytes to write (variable for IMIX)
 void fill_payload_with_prbs31_dynamic(struct rte_mbuf *mbuf, uint16_t port_id,
                                        uint64_t sequence_number, uint16_t l2_len,
                                        uint16_t prbs_len);
 
-// Legacy wrapper (sabit boyut için geriye uyumluluk)
+// Legacy wrapper (backward compatibility for fixed size)
 static inline void fill_payload_with_prbs31(struct rte_mbuf *mbuf, uint16_t port_id,
                                              uint64_t sequence_number, uint16_t l2_len)
 {
@@ -223,26 +223,26 @@ static inline void fill_payload_with_prbs31(struct rte_mbuf *mbuf, uint16_t port
 // IMIX HELPER FUNCTIONS
 // ==========================================
 
-// IMIX pattern'den paket boyutu al (worker'ın offset + counter'ına göre)
+// Get packet size from IMIX pattern (based on worker's offset + counter)
 static inline uint16_t get_imix_packet_size(uint64_t pkt_counter, uint8_t worker_offset)
 {
     static const uint16_t imix_pattern[IMIX_PATTERN_SIZE] = IMIX_PATTERN_INIT;
     return imix_pattern[(pkt_counter + worker_offset) % IMIX_PATTERN_SIZE];
 }
 
-// Paket boyutundan payload boyutunu hesapla
+// Calculate payload size from packet size
 static inline uint16_t calc_payload_size(uint16_t pkt_size)
 {
     return CALC_PAYLOAD_LEN(pkt_size);
 }
 
-// Paket boyutundan PRBS boyutunu hesapla
+// Calculate PRBS size from packet size
 static inline uint16_t calc_prbs_size(uint16_t pkt_size)
 {
     return CALC_PRBS_LEN(pkt_size);
 }
 
-// Dinamik boyutlu paket oluştur
+// Build packet with dynamic size
 int build_packet_dynamic(struct rte_mbuf *mbuf, const struct packet_config *config,
                           uint16_t packet_size);
 

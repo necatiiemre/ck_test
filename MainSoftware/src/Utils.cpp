@@ -71,20 +71,20 @@ void pressEnterForDebug(){
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 
-// Ctrl+C sinyali için global flag
+// Global flag for Ctrl+C signal
 static std::atomic<bool> g_ctrlc_received(false);
 
 // SIGINT handler
 static void ctrlc_handler(int signum) {
-    (void)signum; // unused warning'i önle
+    (void)signum; // prevent unused warning
     g_ctrlc_received.store(true);
 }
 
 void waitForCtrlC() {
-    // Flag'i sıfırla
+    // Reset flag
     g_ctrlc_received.store(false);
 
-    // Eski handler'ı sakla
+    // Save old handler
     struct sigaction old_action;
     struct sigaction new_action;
 
@@ -92,19 +92,19 @@ void waitForCtrlC() {
     sigemptyset(&new_action.sa_mask);
     new_action.sa_flags = 0;
 
-    // Yeni handler'ı kaydet
+    // Register new handler
     sigaction(SIGINT, &new_action, &old_action);
 
     std::cout << "Waiting for Ctrl+C to continue..." << std::endl;
 
-    // Ctrl+C gelene kadar bekle
+    // Wait until Ctrl+C is received
     while (!g_ctrlc_received.load()) {
-        usleep(100000); // 100ms bekle (CPU kullanımını azaltmak için)
+        usleep(100000); // Wait 100ms (to reduce CPU usage)
     }
 
     std::cout << "\nCtrl+C received, continuing..." << std::endl;
 
-    // Eski handler'ı geri yükle
+    // Restore old handler
     sigaction(SIGINT, &old_action, nullptr);
 }
 

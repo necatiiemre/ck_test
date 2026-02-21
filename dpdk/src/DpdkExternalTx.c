@@ -1,8 +1,8 @@
 /**
  * DPDK External TX System
  *
- * Mevcut DPDK TX'ten BAĞIMSIZ çalışan harici TX sistemi.
- * Port 0,1,2,3'ten switch üzerinden Port 12'ye paket gönderir.
+ * External TX system that operates INDEPENDENTLY from existing DPDK TX.
+ * Sends packets from Port 0,1,2,3 to Port 12 through the switch.
  */
 
 #include <stdio.h>
@@ -57,16 +57,16 @@ static void ext_rate_limiter_init(struct ext_rate_limiter *limiter, uint32_t rat
     limiter->tsc_hz = rte_get_tsc_hz();
     limiter->tokens_per_sec = (uint64_t)rate_mbps * 1000000ULL / 8; // bytes per second
 
-    // DÜZELTME: 100ms -> 0.5ms burst window (switch buffer taşmasını önle)
+    // FIX: 100ms -> 0.5ms burst window (prevents switch buffer overflow)
     limiter->max_tokens = limiter->tokens_per_sec / 2000; // 0.5ms worth (was /10 = 100ms)
 
-    // Minimum bucket: sadece 1 paket (burst önleme)
+    // Minimum bucket: only 1 packet (burst prevention)
     const uint64_t min_bucket = 1 * 1520; // ~1.5KB minimum (was 32 packets)
     if (limiter->max_tokens < min_bucket) {
         limiter->max_tokens = min_bucket;
     }
 
-    // DÜZELTME: Soft start - boş bucket ile başla (ani burst önleme)
+    // FIX: Soft start - begin with empty bucket (prevent sudden burst)
     limiter->tokens = 0;  // was limiter->max_tokens
     limiter->last_update = rte_rdtsc();
 }
@@ -127,23 +127,23 @@ int dpdk_ext_tx_get_source_port(uint16_t vl_id)
 {
     // VL-ID ranges must match config.h DPDK_EXT_TX_PORT_*_TARGETS
     //
-    // Port 12 hedefli (Port 2,3,4,5):
+    // Targeting Port 12 (Port 2,3,4,5):
     //   Port 2 → VL-ID 4291-4322 (32 VL-ID)
     //   Port 3 → VL-ID 4323-4354 (32 VL-ID)
     //   Port 4 → VL-ID 4355-4386 (32 VL-ID)
     //   Port 5 → VL-ID 4387-4418 (32 VL-ID)
     //
-    // Port 13 hedefli (Port 0,6):
+    // Targeting Port 13 (Port 0,6):
     //   Port 0 → VL-ID 4099-4114 (16 VL-ID)
     //   Port 6 → VL-ID 4115-4130 (16 VL-ID)
 
-    // Port 12 hedefli
+    // Targeting Port 12
     if (vl_id >= 4291 && vl_id < 4323) return 2;
     if (vl_id >= 4323 && vl_id < 4355) return 3;
     if (vl_id >= 4355 && vl_id < 4387) return 4;
     if (vl_id >= 4387 && vl_id < 4419) return 5;
 
-    // Port 13 hedefli
+    // Targeting Port 13
     if (vl_id >= 4099 && vl_id < 4115) return 0;
     if (vl_id >= 4115 && vl_id < 4131) return 6;
 
@@ -281,7 +281,7 @@ int dpdk_ext_tx_worker(void *arg)
     uint64_t tsc_hz = rte_get_tsc_hz();
 
 #if TOKEN_BUCKET_TX_ENABLED
-    // TOKEN BUCKET: Her VL-IDX TB_WINDOW_MS'de TB_PACKETS_PER_VL_PER_WINDOW paket
+    // TOKEN BUCKET: Each VL-IDX gets TB_PACKETS_PER_VL_PER_WINDOW packets per TB_WINDOW_MS
     // Total VL count across all targets
     uint16_t total_tb_vl_count = 0;
     for (int t = 0; t < target_count; t++)
@@ -289,25 +289,25 @@ int dpdk_ext_tx_worker(void *arg)
     uint64_t packets_per_sec = (uint64_t)((double)total_tb_vl_count * TB_PACKETS_PER_VL_PER_WINDOW * 1000.0 / TB_WINDOW_MS);
     uint64_t delay_cycles = (packets_per_sec > 0) ? (tsc_hz / packets_per_sec) : tsc_hz;
 #else
-    // Hassas hesaplama: rate_mbps -> bytes/sec -> packets/sec -> cycles/packet
-    // IMIX: Ortalama paket boyutu kullan
+    // Precise calculation: rate_mbps -> bytes/sec -> packets/sec -> cycles/packet
+    // IMIX: Use average packet size
     uint64_t bytes_per_sec = (uint64_t)params->rate_mbps * 125000ULL;  // Mbit/s -> bytes/s
     uint64_t packets_per_sec = bytes_per_sec / avg_pkt_size;
     uint64_t delay_cycles = (packets_per_sec > 0) ? (tsc_hz / packets_per_sec) : tsc_hz;
 #endif
 
-    // Mikrosaniye cinsinden paket arası süre (debug için)
+    // Inter-packet interval in microseconds (for debug)
     double inter_packet_us = (double)delay_cycles * 1000000.0 / (double)tsc_hz;
 
-    // Stagger: Her port farklı zamanda başlar (switch buffer koruma)
+    // Stagger: Each port starts at a different time (switch buffer protection)
     // Port 2=0ms, Port 3=50ms, Port 4=100ms, Port 5=150ms
     uint64_t stagger_offset = port_idx * (tsc_hz / 20);  // 50ms per port
 
 #if TOKEN_BUCKET_TX_ENABLED
-    // Ext TX phase: Worker'ları paket periyodu içinde eşit dağıt
-    // Stagger offset delay_cycles'ın tam katı olduğunda tüm ext TX worker'lar
-    // aynı fazda ateş ediyor (ör: 50ms / 62.5μs = 800.0 tam sayı → hepsi aynı anda).
-    // Bu fix ile her worker, periyodun 1/DPDK_EXT_TX_PORT_COUNT'lık dilimine kayar.
+    // Ext TX phase: Distribute workers evenly within the packet period
+    // When stagger offset is an exact multiple of delay_cycles, all ext TX workers
+    // fire in the same phase (e.g. 50ms / 62.5us = 800.0 integer -> all at once).
+    // This fix shifts each worker to a 1/DPDK_EXT_TX_PORT_COUNT slice of the period.
     uint64_t ext_phase = port_idx * (delay_cycles / DPDK_EXT_TX_PORT_COUNT);
     uint64_t next_send_time = rte_get_tsc_cycles() + stagger_offset + ext_phase;
 #else
@@ -323,7 +323,7 @@ int dpdk_ext_tx_worker(void *arg)
     printf("  -> IMIX pattern: 100, 200, 400, 800, 1200x3, 1518x3 (avg=%lu bytes)\n", avg_pkt_size);
     printf("  -> Worker offset: %u (hybrid shuffle)\n", imix_offset);
 #else
-    printf("  *** SMOOTH PACING - 1 saniyeye yayılmış trafik ***\n");
+    printf("  *** SMOOTH PACING - traffic spread over 1 second ***\n");
 #endif
     for (int t = 0; t < target_count; t++) {
         struct dpdk_ext_tx_target *target = &port_config->targets[t];
@@ -331,7 +331,7 @@ int dpdk_ext_tx_worker(void *arg)
                t, target->vlan_id, target->vl_id_start,
                target->vl_id_start + target->vl_id_count);
     }
-    printf("  -> Pacing: %.1f us/paket (%.0f paket/s), stagger=%lums\n",
+    printf("  -> Pacing: %.1f us/pkt (%.0f pkt/s), stagger=%lums\n",
            inter_packet_us, (double)packets_per_sec, stagger_offset * 1000 / tsc_hz);
 
     uint64_t local_tx_pkts = 0;
@@ -341,34 +341,34 @@ int dpdk_ext_tx_worker(void *arg)
     while (!(*params->stop_flag))
     {
         // ==========================================
-        // SMOOTH PACING: Her paket tam zamanında gönderilir
-        // Burst YOK - trafik 1 saniyeye eşit yayılır
+        // SMOOTH PACING: Each packet is sent exactly on time
+        // NO burst - traffic is evenly spread over 1 second
         // ==========================================
         uint64_t now = rte_get_tsc_cycles();
 
-        // Zamanı gelene kadar bekle (busy-wait for precision)
+        // Wait until it's time (busy-wait for precision)
         while (now < next_send_time) {
             rte_pause();
             now = rte_get_tsc_cycles();
         }
 
 #if TOKEN_BUCKET_TX_ENABLED
-        // ÖNEMLİ: Geride kalırsak PHASE-PRESERVING SKIP (burst önleme)
-        // next_send_time = now yerine N * delay_cycles ile ilerle
-        // Bu sayede port'lar arası phase offset korunur
+        // IMPORTANT: If we fall behind, use PHASE-PRESERVING SKIP (burst prevention)
+        // Advance by N * delay_cycles instead of setting next_send_time = now
+        // This preserves the inter-port phase offset
         if (next_send_time + delay_cycles < now) {
             uint64_t periods_behind = (now - next_send_time) / delay_cycles;
             next_send_time += periods_behind * delay_cycles;
         }
 #else
-        // Geride kalırsak şimdiden başla (paket kaybı kabul)
+        // If we fall behind, restart from now (accept packet loss)
         if (next_send_time + delay_cycles < now) {
             next_send_time = now;
         }
 #endif
         next_send_time += delay_cycles;
 
-        // Paket tahsisi - BAŞARISIZ OLURSA BİLE TIMING KORUNUR
+        // Packet allocation - TIMING IS PRESERVED EVEN IF ALLOCATION FAILS
         pkts[0] = rte_pktmbuf_alloc(params->mbuf_pool);
         if (unlikely(pkts[0] == NULL)) {
             continue;
@@ -419,7 +419,7 @@ int dpdk_ext_tx_worker(void *arg)
         *(uint16_t *)(vlan_tag + 2) = rte_cpu_to_be_16(0x0800); // IPv4
 
 #if IMIX_ENABLED
-        // IMIX: Paket boyutunu pattern'den al
+        // IMIX: Get packet size from pattern
         uint16_t pkt_size = get_imix_packet_size(imix_counter, imix_offset);
         uint16_t prbs_len = calc_prbs_size(pkt_size);
         uint16_t payload_size = pkt_size - l2_len - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
@@ -431,7 +431,7 @@ int dpdk_ext_tx_worker(void *arg)
 #endif
 
         // ==========================================
-        // BUILD IP HEADER (dinamik total_length)
+        // BUILD IP HEADER (dynamic total_length)
         // ==========================================
         struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(pkt + l2_len);
         ip->version_ihl = 0x45;
@@ -449,7 +449,7 @@ int dpdk_ext_tx_worker(void *arg)
         ip->hdr_checksum = rte_ipv4_cksum(ip);
 
         // ==========================================
-        // BUILD UDP HEADER (dinamik dgram_len)
+        // BUILD UDP HEADER (dynamic dgram_len)
         // ==========================================
         struct rte_udp_hdr *udp = (struct rte_udp_hdr *)(pkt + l2_len + sizeof(struct rte_ipv4_hdr));
         udp->src_port = rte_cpu_to_be_16(100);
@@ -465,7 +465,7 @@ int dpdk_ext_tx_worker(void *arg)
         // Sequence number (8 bytes)
         *(uint64_t *)payload = seq;
 
-        // PRBS data (IMIX: offset hep MAX ile hesaplanır, boyut dinamik)
+        // PRBS data (IMIX: offset is always calculated with MAX, size is dynamic)
 #if IMIX_ENABLED
         uint64_t prbs_offset = (seq * (uint64_t)MAX_PRBS_BYTES) % PRBS_CACHE_SIZE;
         memcpy(payload + 8, prbs_cache_ext + prbs_offset, prbs_len);
@@ -474,7 +474,7 @@ int dpdk_ext_tx_worker(void *arg)
         memcpy(payload + 8, prbs_cache_ext + prbs_offset, NUM_PRBS_BYTES);
 #endif
 
-        // Set packet length (dinamik)
+        // Set packet length (dynamic)
         m->data_len = pkt_size;
         m->pkt_len = pkt_size;
 
@@ -487,12 +487,12 @@ int dpdk_ext_tx_worker(void *arg)
         }
 
         if (nb_tx > 0) {
-            // Sequence'ı sadece başarılı gönderimden sonra artır
+            // Only increment sequence after successful send
             commit_ext_tx_sequence(port_idx, curr_vl);
             local_tx_pkts++;
             local_tx_bytes += pkt_size;
         } else {
-            // TX queue dolu — paketi at, sequence artırma (tekrar denenecek)
+            // TX queue full — drop packet, don't increment sequence (will be retried)
             rte_pktmbuf_free(pkts[0]);
         }
 

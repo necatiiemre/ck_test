@@ -2,15 +2,14 @@
  * @file ate_cumulus_config.h
  * @brief ATE Test Mode - Cumulus Switch Configuration via SSH
  *
- * DPDK sunucusundan (10.1.33.2) dogrudan Cumulus switch'e (10.1.33.3)
- * SSH ile ATE test modu icin yeni interfaces ve bridge VLAN config gonderir.
+ * Sends new interfaces and bridge VLAN config from DPDK server (10.1.33.2)
+ * directly to Cumulus switch (10.1.33.3) via SSH for ATE test mode.
  *
- * C++ tarafindaki CumulusHelper + SSHDeployer mekanizmasinin
- * C karsiligi olarak calisir.
+ * C equivalent of the C++ CumulusHelper + SSHDeployer mechanism.
  *
- * Kullanim:
+ * Usage:
  *   if (ate_configure_cumulus() == 0) {
- *       printf("ATE Cumulus config basarili!\n");
+ *       printf("ATE Cumulus config successful!\n");
  *   }
  */
 
@@ -54,7 +53,7 @@ bool ate_cumulus_test_connection(void);
 /**
  * @brief Deploy ATE interfaces file to Cumulus switch
  *
- * 1. SCP ile interfaces dosyasini /tmp/interfaces olarak gonderir
+ * 1. Sends interfaces file to /tmp/interfaces via SCP
  * 2. sudo mv /tmp/interfaces /etc/network/interfaces
  * 3. sudo ifreload -a
  *
@@ -65,8 +64,8 @@ bool ate_cumulus_deploy_interfaces(void);
 /**
  * @brief Run ATE VLAN configuration sequence on Cumulus switch
  *
- * CumulusHelper::configureSequence() mantigi ile
- * sudo bridge vlan add dev swpXXsY vid VV untagged komutlarini calistirir.
+ * Runs sudo bridge vlan add dev swpXXsY vid VV untagged commands
+ * using CumulusHelper::configureSequence() logic.
  *
  * @return true on success
  */

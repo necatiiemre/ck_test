@@ -51,9 +51,9 @@ void raw_socket_ports_load_config(bool ate_mode)
 // ==========================================
 // GLOBAL SEQUENCE TRACKING (shared across all RX queues)
 // ==========================================
-// Bu yapı tüm multi-queue RX thread'leri tarafından paylaşılır.
-// PACKET_FANOUT_HASH aynı VL-ID'yi farklı queue'lara dağıtabildiği için
-// global tracking gerekli.
+// This structure is shared by all multi-queue RX threads.
+// Global tracking is needed because PACKET_FANOUT_HASH can distribute
+// the same VL-ID across different queues.
 
 // Port 12: VL-ID 4291-4418 (from Port 2,3,4,5)
 #define GLOBAL_SEQ_VL_ID_START_P12 4291
@@ -68,10 +68,10 @@ void raw_socket_ports_load_config(bool ate_mode)
 #define GLOBAL_SEQ_VL_ID_COUNT GLOBAL_SEQ_VL_ID_COUNT_P12
 
 struct global_vl_seq_state {
-    _Atomic uint64_t min_seq;      // İlk görülen sequence
-    _Atomic uint64_t max_seq;      // En yüksek sequence
-    _Atomic uint64_t rx_count;     // Alınan paket sayısı
-    _Atomic bool initialized;      // İlk paket alındı mı?
+    _Atomic uint64_t min_seq;      // First seen sequence
+    _Atomic uint64_t max_seq;      // Highest sequence
+    _Atomic uint64_t rx_count;     // Received packet count
+    _Atomic bool initialized;      // Has the first packet been received?
 };
 
 static struct global_vl_seq_state g_vl_seq_p12[GLOBAL_SEQ_VL_ID_COUNT_P12];
@@ -402,7 +402,7 @@ int init_raw_prbs_cache(struct raw_socket_port *port)
 // PACKET BUILDING
 // ==========================================
 
-// Legacy build_raw_packet (sabit boyut için geriye uyumluluk)
+// Legacy build_raw_packet (backward compatibility for fixed size)
 int build_raw_packet(uint8_t *buffer, const uint8_t *src_mac,
                      uint16_t vl_id, uint64_t sequence, const uint8_t *prbs_data)
 {
@@ -469,7 +469,7 @@ int build_raw_packet(uint8_t *buffer, const uint8_t *src_mac,
 }
 
 #if IMIX_ENABLED
-// IMIX: Dinamik boyutlu paket oluştur
+// IMIX: Build dynamic-sized packet
 int build_raw_packet_dynamic(uint8_t *buffer, const uint8_t *src_mac,
                               uint16_t vl_id, uint64_t sequence,
                               const uint8_t *prbs_data, uint16_t prbs_len,
@@ -489,7 +489,7 @@ int build_raw_packet_dynamic(uint8_t *buffer, const uint8_t *src_mac,
     buffer[12] = 0x08;
     buffer[13] = 0x00;
 
-    // IPv4 Header (dinamik total_length)
+    // IPv4 Header (dynamic total_length)
     uint8_t *ip = buffer + RAW_PKT_ETH_HDR_SIZE;
     uint16_t payload_size = pkt_size - RAW_PKT_ETH_HDR_SIZE - RAW_PKT_IP_HDR_SIZE - RAW_PKT_UDP_HDR_SIZE;
     uint16_t ip_total_len = RAW_PKT_IP_HDR_SIZE + RAW_PKT_UDP_HDR_SIZE + payload_size;
@@ -520,7 +520,7 @@ int build_raw_packet_dynamic(uint8_t *buffer, const uint8_t *src_mac,
     ip[10] = (ip_checksum >> 8) & 0xFF;
     ip[11] = ip_checksum & 0xFF;
 
-    // UDP Header (dinamik dgram_len)
+    // UDP Header (dynamic dgram_len)
     uint8_t *udp = ip + RAW_PKT_IP_HDR_SIZE;
     udp[0] = 0x00;
     udp[1] = 0x64;
@@ -532,7 +532,7 @@ int build_raw_packet_dynamic(uint8_t *buffer, const uint8_t *src_mac,
     udp[6] = 0x00;
     udp[7] = 0x00;
 
-    // Payload (dinamik PRBS boyutu)
+    // Payload (dynamic PRBS size)
     uint8_t *payload = udp + RAW_PKT_UDP_HDR_SIZE;
     memcpy(payload, &sequence, RAW_PKT_SEQ_BYTES);
     memcpy(payload + RAW_PKT_SEQ_BYTES, prbs_data, prbs_len);
@@ -540,14 +540,14 @@ int build_raw_packet_dynamic(uint8_t *buffer, const uint8_t *src_mac,
     return pkt_size;
 }
 
-// IMIX paket boyutu al (raw socket için - VLAN'sız)
+// Get IMIX packet size (for raw socket - without VLAN)
 static inline uint16_t get_raw_imix_packet_size(uint64_t pkt_counter, uint8_t worker_offset)
 {
     static const uint16_t raw_imix_pattern[IMIX_PATTERN_SIZE] = RAW_IMIX_PATTERN_INIT;
     return raw_imix_pattern[(pkt_counter + worker_offset) % IMIX_PATTERN_SIZE];
 }
 
-// Raw IMIX PRBS boyutu hesapla
+// Calculate raw IMIX PRBS size
 static inline uint16_t calc_raw_prbs_size(uint16_t pkt_size)
 {
     return pkt_size - RAW_PKT_ETH_HDR_SIZE - RAW_PKT_IP_HDR_SIZE - RAW_PKT_UDP_HDR_SIZE - RAW_PKT_SEQ_BYTES;
@@ -926,15 +926,15 @@ int init_raw_socket_port(int raw_index, const struct raw_socket_port_config *con
             target->limiter.delay_ns = (uint64_t)(TB_WINDOW_MS * 1000000.0 /
                 (target->config.vl_id_count * TB_PACKETS_PER_VL_PER_WINDOW));
 
-            // Raw TX phase: Target'ları paket periyodu içinde eşit dağıt
-            // 50ms stagger tam katı olduğunda (50ms/62.5us=800.0) tüm target'lar
-            // aynı faza hizalanır → burst oluşur. Phase offset bunu kırar.
+            // Raw TX phase: Distribute targets evenly within the packet period
+            // When 50ms stagger is an exact multiple (50ms/62.5us=800.0) all targets
+            // align to the same phase -> burst occurs. Phase offset breaks this.
             if (config->tx_target_count > 1) {
                 uint64_t raw_phase_ns = (uint64_t)t * (target->limiter.delay_ns / config->tx_target_count);
                 target->limiter.next_send_time_ns += raw_phase_ns;
             }
 
-            // Sıkı catch-up limiti: delay × target_sayısı
+            // Strict catch-up limit: delay x target_count
             // Port 12 (1.2ms/16VL): 75μs × 4 = 300μs → max 4 catch-up/target → 16 interleaved
             // Port 13 (1.2ms/3VL):  400μs × 2 = 800μs → max 2 catch-up/target → 4 interleaved
             target->limiter.max_catchup_ns = target->limiter.delay_ns *
@@ -1067,11 +1067,11 @@ int init_raw_socket_ports(void)
 void *raw_tx_worker(void *arg)
 {
     struct raw_socket_port *port = (struct raw_socket_port *)arg;
-    uint8_t packet_buffer[RAW_PKT_TOTAL_SIZE];  // Max boyut
+    uint8_t packet_buffer[RAW_PKT_TOTAL_SIZE];  // Max size
     bool first_tx[MAX_RAW_TARGETS] = {false};
 
 #if IMIX_ENABLED
-    // IMIX: Worker offset (her target için farklı pattern başlangıcı)
+    // IMIX: Worker offset (different pattern start for each target)
     uint8_t imix_offset = (uint8_t)(port->port_id % IMIX_PATTERN_SIZE);
     uint64_t imix_counter = 0;
 #endif
@@ -1102,9 +1102,9 @@ void *raw_tx_worker(void *arg)
 
 #if TOKEN_BUCKET_TX_ENABLED
     // Startup timing reset + base delay:
-    // 1) next_send_time limiter init sırasında ayarlandı ama thread çok sonra başlıyor
-    // 2) 200ms base delay: DPDK TX ve ext TX tamamen stabilize olsun
-    //    (raw socket TX en son başlar → diğer TX'lerle çakışma yok)
+    // 1) next_send_time was set during limiter init but thread starts much later
+    // 2) 200ms base delay: let DPDK TX and ext TX fully stabilize
+    //    (raw socket TX starts last -> no collision with other TX threads)
     {
         uint64_t tx_start_ns = get_time_ns();
         uint64_t base_delay_ns = 200000000ULL;  // 200ms base startup delay
@@ -1124,12 +1124,12 @@ void *raw_tx_worker(void *arg)
 
     uint32_t batch_count = 0;
 #if TOKEN_BUCKET_TX_ENABLED
-    // Dinamik batch: link hızına göre burst süresini sınırla
-    // Hedef: send() burst'ü max ~500μs wire time (switch buffer taşması önleme)
-    // Formula: max_pkts = (hedef_burst_us × link_mbps) / (pkt_bytes × 8)
-    //   1G:   (500 × 1000) / (1509 × 8) = 41 → cap 16 → 193μs burst (kısa)
-    //   100M: (500 × 100)  / (1509 × 8) = 4  → 4 pkts → 483μs burst (kısa)
-    // Neden önemli: Port 13 (100M) + BATCH=16 → 1930μs burst → P1/P7 switch buffer taşar
+    // Dynamic batch: limit burst duration based on link speed
+    // Goal: send() burst max ~500us wire time (prevent switch buffer overflow)
+    // Formula: max_pkts = (target_burst_us x link_mbps) / (pkt_bytes x 8)
+    //   1G:   (500 x 1000) / (1509 x 8) = 41 -> cap 16 -> 193us burst (short)
+    //   100M: (500 x 100)  / (1509 x 8) = 4  -> 4 pkts -> 483us burst (short)
+    // Why it matters: Port 13 (100M) + BATCH=16 -> 1930us burst -> P1/P7 switch buffer overflows
     const uint32_t link_speed_mbps = port->config.is_1g_port ? 1000 : 100;
     uint32_t dynamic_batch = (500 * link_speed_mbps) / (RAW_PKT_TOTAL_SIZE * 8);
     if (dynamic_batch < 2) dynamic_batch = 2;
@@ -1153,9 +1153,9 @@ void *raw_tx_worker(void *arg)
     while (!port->stop_flag && (g_stop_flag == NULL || !*g_stop_flag)) {
         bool any_sent = false;
 
-        // Round-robin interleaved pacing (tüm modlar):
-        // T0→T1→T2→T3→T0→T1→... (interleaved, switch-friendly burst dağıtımı)
-        // Eski sequential burst (T0×64→T1×64→...) kaldırıldı — DTN port collision önleme
+        // Round-robin interleaved pacing (all modes):
+        // T0->T1->T2->T3->T0->T1->... (interleaved, switch-friendly burst distribution)
+        // Old sequential burst (T0x64->T1x64->...) removed -- DTN port collision prevention
         bool any_due = true;
 #if !TOKEN_BUCKET_TX_ENABLED
         uint32_t catchup_count[MAX_RAW_TARGETS] = {0};
@@ -1180,8 +1180,8 @@ void *raw_tx_worker(void *arg)
                 uint16_t vl_index = target->current_vl_offset;
 #if TOKEN_BUCKET_TX_ENABLED
                 // Token bucket: Non-contiguous VL-ID ranges
-                // Port 12: 4'lü bloklar, 8 step (block_size=4, step=8)
-                // Port 13: tekil VL, 4 step (block_size=1, step=4)
+                // Port 12: blocks of 4, 8 step (block_size=4, step=8)
+                // Port 13: single VL, 4 step (block_size=1, step=4)
                 uint16_t tb_block_size, tb_block_step;
                 if (port->port_id == 12) {
                     tb_block_size = TB_PORT_12_VL_BLOCK_SIZE;
@@ -1201,16 +1201,16 @@ void *raw_tx_worker(void *arg)
                 uint64_t seq = target->vl_sequences[vl_index].tx_sequence;
 
 #if IMIX_ENABLED
-                // IMIX: Paket boyutunu pattern'den al
+                // IMIX: Get packet size from pattern
                 uint16_t pkt_size = get_raw_imix_packet_size(imix_counter, imix_offset);
                 uint16_t prbs_len = calc_raw_prbs_size(pkt_size);
                 imix_counter++;
 
-                // IMIX: PRBS offset hesabı HEP MAX boyut ile yapılır
+                // IMIX: PRBS offset calculation is ALWAYS done with MAX size
                 uint64_t prbs_offset = (seq * (uint64_t)RAW_MAX_PRBS_BYTES) % RAW_PRBS_CACHE_SIZE;
                 uint8_t *prbs_data = port->prbs_cache_ext + prbs_offset;
 
-                // Build packet (dinamik boyut)
+                // Build packet (dynamic size)
                 build_raw_packet_dynamic(packet_buffer, port->mac_addr, vl_id, seq,
                                           prbs_data, prbs_len, pkt_size);
 #else
@@ -1246,7 +1246,7 @@ void *raw_tx_worker(void *arg)
                     }
                 }
 
-                // Copy packet to ring buffer (dinamik boyut)
+                // Copy packet to ring buffer (dynamic size)
                 uint8_t *frame_data = (uint8_t *)hdr + TPACKET2_HDRLEN - sizeof(struct sockaddr_ll);
                 memcpy(frame_data, packet_buffer, pkt_size);
                 hdr->tp_len = pkt_size;
@@ -1509,8 +1509,8 @@ void *raw_rx_worker(void *arg)
 #if TOKEN_BUCKET_TX_ENABLED
                         // Multi-queue NOT: Port 12 RX has 4 queues (Q0-Q3).
                         // NIC RSS distributes same VL-ID across queues → OOO.
-                        // Gap detection burada false positive verir.
-                        // Kayıp tespiti watermark-based (g_vl_seq) ile yapılır.
+                        // Gap detection gives false positives here.
+                        // Loss detection is done via watermark-based (g_vl_seq) method.
                         if (seq >= dpdk_ext_expected_seq_p12[vl_idx]) {
                             dpdk_ext_expected_seq_p12[vl_idx] = seq + 1;
                         }
@@ -1533,8 +1533,8 @@ void *raw_rx_worker(void *arg)
                     } else {
 #if TOKEN_BUCKET_TX_ENABLED
                         // Multi-queue NOT: Port 13 RX has 2 queues.
-                        // Gap detection multi-queue OOO'da false positive verir.
-                        // Kayıp tespiti watermark-based (g_vl_seq) ile yapılır.
+                        // Gap detection gives false positives in multi-queue OOO.
+                        // Loss detection is done via watermark-based (g_vl_seq) method.
                         if (seq >= dpdk_ext_expected_seq_p13[vl_idx]) {
                             dpdk_ext_expected_seq_p13[vl_idx] = seq + 1;
                         }
@@ -1705,8 +1705,8 @@ void *raw_rx_worker(void *arg)
             uint8_t *recv_prbs = payload + RAW_PKT_SEQ_BYTES;
 
 #if IMIX_ENABLED
-            // IMIX: PRBS offset hesabı HEP MAX boyut ile yapılır
-            // PRBS boyutu paket boyutundan hesaplanır
+            // IMIX: PRBS offset calculation is ALWAYS done with MAX size
+            // PRBS size is calculated from packet size
             uint16_t prbs_len = pkt_len - RAW_PKT_ETH_HDR_SIZE - RAW_PKT_IP_HDR_SIZE -
                                 RAW_PKT_UDP_HDR_SIZE - RAW_PKT_SEQ_BYTES;
             if (prbs_len > RAW_MAX_PRBS_BYTES) prbs_len = RAW_MAX_PRBS_BYTES;
@@ -2110,7 +2110,7 @@ void *multi_queue_rx_worker(void *arg)
             if (partner && partner->prbs_initialized && partner->prbs_cache_ext) {
                 uint8_t *recv_prbs = payload + RAW_PKT_SEQ_BYTES;
 #if IMIX_ENABLED
-                // IMIX: PRBS offset hesabı HEP MAX boyut ile yapılır
+                // IMIX: PRBS offset calculation is ALWAYS done with MAX size
                 uint64_t prbs_offset = (seq * (uint64_t)RAW_MAX_PRBS_BYTES) % RAW_PRBS_CACHE_SIZE;
 #else
                 uint64_t prbs_offset = (seq * (uint64_t)RAW_PKT_PRBS_BYTES) % RAW_PRBS_CACHE_SIZE;

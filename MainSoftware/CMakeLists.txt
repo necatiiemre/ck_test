@@ -5,14 +5,14 @@ project(mainSoftware
     LANGUAGES CXX
 )
 
-# C++ standardi
+# C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Include dizini
+# Include directory
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-# Kaynak dosyalari
+# Source files
 set(SOURCES
     src/main.cpp
     src/UnitManager.cpp
@@ -33,16 +33,16 @@ set(SOURCES
     src/ReportManager.cpp
 )
 
-# Executable olustur
+# Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-# Build dizini icin output ayari
+# Output setting for build directory
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-# Proje kok dizinini compile-time'da tanimla
-# PROJECT_ROOT = TestSoftware kok dizini (CMakeLists.txt'nin bir ust dizini)
+# Define project root directory at compile-time
+# PROJECT_ROOT = TestSoftware root directory (one level above CMakeLists.txt)
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     PROJECT_ROOT="${CMAKE_SOURCE_DIR}/.."
 )

@@ -2,14 +2,14 @@
  * @file ate_cumulus_config.c
  * @brief ATE Test Mode - Cumulus Switch Configuration via SSH
  *
- * C++ tarafindaki CumulusHelper + SSHDeployer mekanizmasinin
- * C karsiligi. DPDK sunucusundan (10.1.33.2) dogrudan Cumulus
- * switch'e (10.1.33.3) SSH ile ATE config gonderir.
+ * C equivalent of the C++ CumulusHelper + SSHDeployer mechanism.
+ * Sends ATE config from DPDK server (10.1.33.2) directly to
+ * Cumulus switch (10.1.33.3) via SSH.
  *
- * Mekanizma:
- *   1. sshpass + scp ile interfaces dosyasini gonder
- *   2. sshpass + ssh ile sudo ifreload -a
- *   3. sshpass + ssh ile sudo bridge vlan add komutlari
+ * Mechanism:
+ *   1. Send interfaces file via sshpass + scp
+ *   2. Run sudo ifreload -a via sshpass + ssh
+ *   3. Run sudo bridge vlan add commands via sshpass + ssh
  */
 
 #include "AteCumulusConfig.h"
@@ -189,9 +189,9 @@ bool ate_cumulus_egress_untagged(const char *interface, int vlan_id)
 // ============================================
 // ATE VLAN CONFIGURATION SEQUENCE
 // ============================================
-// CumulusHelper::configureSequence() mantigi ile birebir ayni.
-// Her swp port grubu icin egressUntagged komutlari calistirir.
-// NOT: Icerik kullanici tarafindan degistirilecek!
+// Same logic as CumulusHelper::configureSequence().
+// Runs egressUntagged commands for each swp port group.
+// NOTE: Content will be modified by user!
 
 static bool ate_configure_swp1325(void)
 {
@@ -310,7 +310,7 @@ bool ate_cumulus_configure_sequence(void)
     }
 
     // Configure all port groups
-    // NOT: Bu degerler placeholder'dir, kullanici ATE icin degistirecek
+    // NOTE: These values are placeholders, user will modify for ATE
     if (!ate_configure_swp1325()) return false;
     if (!ate_configure_swp1426()) return false;
     if (!ate_configure_swp1527()) return false;
